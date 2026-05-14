@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Create Account — Get A Lesson</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="loader"><div class="spinner"></div></div>
+<div id="toast"></div>
+<div id="app" style="display:none;min-height:100vh;background:var(--w);flex-direction:column">
+  <nav style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bdr)">
+    <a href="/index.html" class="nav-logo">get a <em>lesson.</em></a>
+    <a href="/login.html" style="font-size:12px;color:var(--n3);font-weight:600">Already have an account? Sign in</a>
+  </nav>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px 20px">
+    <div style="width:100%;max-width:360px">
+      <div style="font-size:22px;font-weight:800;color:var(--n);margin-bottom:4px">Create learner account</div>
+      <div style="font-size:13px;color:var(--n3);margin-bottom:22px">Free to sign up. Find and book instructors near you.</div>
+      <form id="reg-form">
+        <div class="form-group"><label>Full name</label><input type="text" id="name" placeholder="Your full name" required></div>
+        <div class="form-group"><label>Email</label><input type="email" id="email" placeholder="you@email.com" required></div>
+        <div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Min 8 characters" minlength="8" required></div>
+        <div class="grid-2">
+          <div class="form-group"><label>Postcode</label><input type="text" id="postcode" placeholder="M1 1AA"></div>
+          <div class="form-group"><label>Test centre</label><select id="centre"><option>Manchester City</option><option>Didsbury</option><option>Trafford</option><option>Wythenshawe</option><option>Oldham</option><option>Stockport</option></select></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Transmission</label><select id="trans"><option>Manual</option><option>Automatic</option><option>No preference</option></select></div>
+          <div class="form-group"><label>Gender pref.</label><select id="gend"><option>No preference</option><option>Male</option><option>Female</option></select></div>
+        </div>
+        <button type="submit" class="btn btn-green" id="submit-btn">Create free account →</button>
+      </form>
+      <div style="text-align:center;font-size:12px;color:var(--n3);margin-top:14px">
+        Want to teach? <a href="/index.html" style="color:var(--b);font-weight:600" onclick="event.preventDefault();window.location.href='/index.html';setTimeout(()=>{if(window.openInstrSignup)openInstrSignup()},800)">Apply as an instructor</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/app.js"></script>
+<script>
+;(async () => {
+  const user = await getUser()
+  if (user) { window.location.href = '/index.html'; return }
+  hideLoader()
+  document.getElementById('app').style.display = 'flex'
+  document.getElementById('app').style.flexDirection = 'column'
+  document.getElementById('reg-form').addEventListener('submit', async e => {
+    e.preventDefault()
+    const btn = document.getElementById('submit-btn'); btn.disabled = true; btn.textContent = 'Creating account…'
+    const { error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: document.getElementById('name').value.trim(), role: 'learner', postcode: document.getElementById('postcode').value.trim(), test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
+    if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+    toast('✅ Account created!'); setTimeout(() => window.location.href = '/index.html', 1200)
+  })
+})()
+</script>
+</body>
+</html>

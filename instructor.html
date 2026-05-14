@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instructor Dashboard — Get A Lesson</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.prof-dd{display:none;position:fixed;top:58px;right:14px;background:var(--w);border:1.5px solid var(--bdr);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:180px;overflow:hidden}
+.prof-dd.open{display:block}
+.pd-hdr{padding:13px 15px;border-bottom:1px solid var(--bdr);background:var(--bg)}
+.pd-name{font-size:13px;font-weight:700;color:var(--n)}
+.pd-role{font-size:11px;color:var(--n3);margin-top:2px}
+.pd-btn{width:100%;padding:11px 15px;text-align:left;background:none;border:none;border-bottom:1px solid var(--bdr);cursor:pointer;font-size:13px;font-weight:600;color:var(--n);font-family:var(--F);display:flex;align-items:center;gap:9px;transition:background .15s}
+.pd-btn:last-child{border-bottom:none}
+.pd-btn:hover{background:var(--bg)}
+.pd-btn.red{color:var(--red)}
+.mob-tab-bar{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--w);border-top:1.5px solid var(--bdr);display:flex;z-index:500;box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.mob-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;flex:1;padding:6px 4px;opacity:.35;transition:opacity .15s;border:none;background:none;-webkit-tap-highlight-color:transparent}
+.mob-tab.active{opacity:1}
+.mob-tab svg{width:22px;height:22px;fill:none;stroke:var(--n3);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mob-tab span{font-size:10px;font-weight:700;color:var(--n3)}
+.mob-tab.active svg{stroke:var(--b)}
+.mob-tab.active span{color:var(--b)}
+.panel{display:none;flex-direction:column;padding-bottom:68px}
+.panel.active{display:flex}
+.pending-banner{background:#fef9c3;border-bottom:2px solid #fde68a;padding:11px 16px;font-size:13px;color:#854d0e;font-weight:600;display:flex;align-items:center;gap:8px}
+.bk2{background:var(--w);border:1.5px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px}
+.bk2.conf{border-left:4px solid var(--b)}
+.bk2.pend{border-left:4px solid var(--warn)}
+.student-card{background:var(--w);border-bottom:1px solid var(--bdr);padding:14px 16px;cursor:pointer}
+.student-card:hover{background:var(--bg)}
+</style>
+</head>
+<body>
+<div id="loader"><div class="spinner"></div></div>
+<div id="toast"></div>
+
+<div id="app" style="display:none;flex-direction:column;min-height:100vh">
+
+  <!-- PROFILE DROPDOWN -->
+  <div class="prof-dd" id="prof-dd">
+    <div class="pd-hdr">
+      <div class="pd-name" id="dd-name">–</div>
+      <div class="pd-role">Instructor account</div>
+    </div>
+    <button class="pd-btn" onclick="switchTab(4);closeDD()">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Profile
+    </button>
+    <button class="pd-btn red" onclick="signOut()">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Log out
+    </button>
+  </div>
+
+  <!-- TOP NAV -->
+  <nav class="top-nav">
+    <a href="#" class="nav-logo blue">get a <em>lesson.</em></a>
+    <div class="nav-right">
+      <div class="nav-av blue" id="nav-av" onclick="toggleDD()" style="cursor:pointer;font-size:16px;font-weight:800">?</div>
+    </div>
+  </nav>
+
+  <!-- PENDING BANNER -->
+  <div id="pending-banner" style="display:none" class="pending-banner">
+    ⏳ Your account is pending admin approval. You'll be notified by email once approved.
+  </div>
+
+  <!-- DASHBOARD PANEL -->
+  <div class="panel active" id="p0">
+    <div class="hero-grad-blue hero-pad">
+      <h2 id="dash-hello" style="font-size:19px;font-weight:800;color:#fff;margin-bottom:3px">Hello 👋</h2>
+      <p style="font-size:11px;color:rgba(255,255,255,.45)">Here are your upcoming lessons</p>
+    </div>
+    <div style="padding:14px 14px 6px;display:flex;align-items:center;justify-content:space-between">
+      <h3 style="font-size:14px;font-weight:700;color:var(--n)">Upcoming lessons</h3>
+      <a onclick="switchTab(1)" style="font-size:12px;color:var(--b);font-weight:600;cursor:pointer">View all →</a>
+    </div>
+    <div id="upcoming-list" style="padding:0 14px"></div>
+  </div>
+
+  <!-- CALENDAR/BOOKINGS PANEL -->
+  <div class="panel" id="p1">
+    <div class="page-hdr"><h2>Bookings</h2></div>
+    <div class="otabs">
+      <button class="otab on" onclick="loadIBookings('confirmed',this)">Confirmed</button>
+      <button class="otab" onclick="loadIBookings('pending',this)">Pending</button>
+      <button class="otab" onclick="loadIBookings('completed',this)">Completed</button>
+    </div>
+    <div id="i-bookings" style="padding:10px 14px"></div>
+  </div>
+
+  <!-- AVAILABILITY PANEL -->
+  <div class="panel" id="p5">
+    <div class="page-hdr"><h2>My Availability</h2></div>
+    <div style="padding:10px 14px">
+      <div style="background:var(--bl);border:1px solid #bfdbfe;border-radius:8px;padding:11px 13px;margin-bottom:14px;font-size:12px;color:var(--bd)">Add open slots that learners can request. Block out time you are unavailable.</div>
+      <div style="font-size:13px;font-weight:700;color:var(--n);margin-bottom:10px">Add new slot</div>
+      <div class="grid-2">
+        <div class="form-group blue"><label>Date & start time</label><input type="datetime-local" id="slot-start"></div>
+        <div class="form-group blue"><label>End time</label><input type="datetime-local" id="slot-end"></div>
+      </div>
+      <div class="form-group blue"><label>Slot type</label>
+        <select id="slot-type"><option value="open">Open — learners can request this</option><option value="blocked">Blocked — personal time, not available</option></select>
+      </div>
+      <button class="btn btn-blue" onclick="addSlot()">Add slot</button>
+    </div>
+    <div style="padding:0 14px 6px;font-size:13px;font-weight:700;color:var(--n);margin-top:14px">Upcoming slots</div>
+    <div id="slots-list" style="padding:0 14px"></div>
+  </div>
+
+  <!-- STUDENTS PANEL -->
+  <div class="panel" id="p2">
+    <div class="page-hdr"><h2>My Students</h2></div>
+    <div style="background:var(--gl);border-bottom:1px solid rgba(29,191,115,.2);padding:9px 14px;font-size:11px;color:#166534;font-weight:600">
+      Auto-review requests fire when students pass or complete 10 lessons with you.
+    </div>
+    <div id="students-list"></div>
+  </div>
+
+  <!-- MESSAGES PANEL -->
+  <div class="panel" id="p3">
+    <div id="i-inbox-wrap">
+      <div class="page-hdr"><h2>Messages</h2></div>
+      <div id="i-inbox-items"></div>
+    </div>
+    <div id="i-chat-view" class="chat-overlay"></div>
+  </div>
+
+  <!-- PROFILE PANEL -->
+  <div class="panel" id="p4">
+    <div class="prof-cover hero-grad-blue">
+      <div class="prof-av-wrap">
+        <div class="prof-av-big hero-grad-blue" id="prof-av-big" style="font-size:22px;font-weight:800">?</div>
+      </div>
+    </div>
+    <div class="prof-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:18px;font-weight:800;color:var(--n)" id="prof-name">–</div>
+          <div style="font-size:12px;color:var(--n3);margin-top:2px">Driving Instructor</div>
+          <div class="lvl-badge" id="prof-badge" style="display:none">⭐ TOP RATED</div>
+        </div>
+        <button class="btn btn-outline" style="width:auto;padding:7px 14px;font-size:12px" onclick="toast('Edit profile coming soon')">Edit</button>
+      </div>
+      <div class="prof-stats">
+        <div><div class="ps-val" id="ps-rate">0%</div><div class="ps-lbl">Pass rate</div></div>
+        <div><div class="ps-val" id="ps-lessons">0</div><div class="ps-lbl">Lessons</div></div>
+        <div><div class="ps-val" id="ps-reviews">0</div><div class="ps-lbl">Reviews</div></div>
+        <div><div class="ps-val" id="ps-rating">–</div><div class="ps-lbl">Rating</div></div>
+      </div>
+    </div>
+    <div class="info-card">
+      <h3>Account info</h3>
+      <div class="irow"><span class="irl">Email</span><span class="irv" id="p-email">–</span></div>
+      <div class="irow"><span class="irl">Car</span><span class="irv" id="p-car">–</span></div>
+      <div class="irow"><span class="irl">Location</span><span class="irv" id="p-loc">–</span></div>
+      <div class="irow"><span class="irl">Test centre</span><span class="irv" id="p-centre">–</span></div>
+      <div class="irow"><span class="irl">Subscription</span><span class="irv" id="p-sub">–</span></div>
+    </div>
+    <div class="info-card">
+      <h3>My listings</h3>
+      <div id="p-listings"><span style="font-size:11px;color:var(--n3)">No listings yet</span></div>
+    </div>
+    <div style="padding:10px 14px 28px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-blue" id="sub-btn" onclick="manageSub()">Manage Subscription</button>
+      <button class="btn btn-outline" style="color:var(--red);border-color:rgba(239,68,68,.3)" onclick="signOut()">Log out</button>
+    </div>
+  </div>
+
+  <!-- BOTTOM TAB BAR -->
+  <div class="mob-tab-bar">
+    <button class="mob-tab active" id="tab0" onclick="switchTab(0)">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="mob-tab" id="tab1" onclick="switchTab(1)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span>Bookings</span>
+    </button>
+    <button class="mob-tab" id="tab5" onclick="switchTab(5)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>
+      <span>Availability</span>
+    </button>
+    <button class="mob-tab" id="tab2" onclick="switchTab(2)">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      <span>Students</span>
+    </button>
+    <button class="mob-tab" id="tab3" onclick="switchTab(3)">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span>Messages</span>
+    </button>
+    <button class="mob-tab" id="tab4" onclick="switchTab(4)">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profile</span>
+    </button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/testcentres.js"></script>
+<script src="/js/app.js"></script>
+<script>
+const COLOURS = ['#1A3C5E','#7B3F8B','#1A7C4F','#C0392B','#2B5EA7','#C0712B']
+let CU = null, CP = null, IP = null
+
+;(async () => {
+  const ctx = await requireRole('instructor')
+  if (!ctx) return
+  CU = ctx.user; CP = ctx.profile
+  document.getElementById('app').style.display = 'flex'
+  document.getElementById('app').style.flexDirection = 'column'
+  await loadProfile()
+  await Promise.all([loadDashboard(), loadIBookings('confirmed'), loadStudents(), loadMessages()])
+})()
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('prof-dd')
+  const av = document.getElementById('nav-av')
+  if (dd && !dd.contains(e.target) && e.target !== av) dd.classList.remove('open')
+})
+
+function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
+function closeDD()  { document.getElementById('prof-dd').classList.remove('open') }
+
+function switchTab(i) {
+  for (let j = 0; j < 5; j++) {
+    document.getElementById('tab'+j)?.classList.toggle('active', j===i)
+    document.getElementById('p'+j)?.classList.toggle('active', j===i)
+  }
+  closeDD()
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+async function loadDashboard() {
+  const now = new Date()
+  const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7)
+  const { data: bookings } = await sb.from('bookings')
+    .select('*,learner:profiles!learner_id(full_name)')
+    .eq('instructor_id', IP?.id)
+    .in('status', ['confirmed', 'pending'])
+    .gte('scheduled_at', now.toISOString())
+    .order('scheduled_at', { ascending: true })
+    .limit(10)
+
+  const list = document.getElementById('upcoming-list')
+  if (!bookings?.length) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No upcoming lessons yet.<br><br>Share your profile link to get bookings!</div>'
+    return
+  }
+  list.innerHTML = bookings.map((b, i) => {
+    const d = new Date(b.scheduled_at)
+    const isToday = d.toDateString() === now.toDateString()
+    const label = isToday ? 'Today · ' + fmtTime(b.scheduled_at) : fmtDate(b.scheduled_at)
+    const name = b.learner?.full_name || 'Student'
+    return '<div class="bk2 ' + b.status + '" style="margin-bottom:10px">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      + '<div class="nav-av blue" style="width:40px;height:40px;flex-shrink:0;background:' + COLOURS[i%COLOURS.length] + ';border-radius:50%">' + ini(name) + '</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:2px">Standard Lesson</div></div>'
+      + '<span class="badge ' + (b.status==='confirmed'?'badge-conf':'badge-pend') + '">' + b.status + '</span></div>'
+      + '<div style="font-size:12px;color:var(--n2);font-weight:600">📅 ' + label + ' · ⏱ ' + b.duration_mins + 'min</div>'
+      + '<div style="display:flex;gap:7px;margin-top:10px">'
+      + '<button class="ba ba-b" onclick="confirmBk(\'' + b.id + '\')">✓ Confirm</button>'
+      + '<button class="ba ba-s" onclick="switchTab(3)">💬 Message</button>'
+      + (b.status==='confirmed'?'<button class="ba ba-s" onclick="cancelBk(\'' + b.id + '\')">Cancel</button>':'')
+      + '</div></div>'
+  }).join('')
+}
+
+// ── BOOKINGS ──────────────────────────────────────────────────
+async function loadIBookings(status, btn) {
+  if (btn) { document.querySelectorAll('.otab').forEach(t => t.classList.remove('on')); btn.classList.add('on') }
+  const { data } = await sb.from('bookings')
+    .select('*,learner:profiles!learner_id(full_name)')
+    .eq('instructor_id', IP?.id).eq('status', status)
+    .order('scheduled_at', { ascending: true })
+  const list = document.getElementById('i-bookings')
+  if (!data?.length) { list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No ' + status + ' bookings</div>'; return }
+  list.innerHTML = data.map((b, i) => {
+    const name = b.learner?.full_name || 'Student'
+    return '<div class="bk2 ' + b.status + '">'
+      + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">'
+      + '<div class="nav-av blue" style="width:36px;height:36px;flex-shrink:0;background:' + COLOURS[i%COLOURS.length] + ';border-radius:50%;font-size:12px">' + ini(name) + '</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:1px">📅 ' + fmtDate(b.scheduled_at) + ' · ⏱ ' + fmtTime(b.scheduled_at) + '</div></div>'
+      + '<span class="badge ' + (b.status==='confirmed'?'badge-conf':b.status==='pending'?'badge-pend':'badge-done') + '">' + b.status + '</span></div>'
+      + '<div style="display:flex;gap:7px">'
+      + (b.status==='pending'?'<button class="ba ba-b" onclick="confirmBk(\'' + b.id + '\')">✓ Confirm</button>':'')
+      + '<button class="ba ba-s" onclick="switchTab(3)">💬 Message</button>'
+      + (b.status==='confirmed'?'<button class="ba ba-s" onclick="cancelBk(\'' + b.id + '\')">Cancel</button>':'')
+      + '</div></div>'
+  }).join('')
+}
+
+async function confirmBk(id) {
+  await sb.from('bookings').update({ status: 'confirmed' }).eq('id', id)
+  toast('✓ Confirmed'); loadDashboard(); loadIBookings('pending')
+}
+async function cancelBk(id) {
+  await sb.from('bookings').update({ status: 'cancelled' }).eq('id', id)
+  toast('Cancelled'); loadDashboard(); loadIBookings('confirmed')
+}
+
+// ── STUDENTS ──────────────────────────────────────────────────
+async function loadStudents() {
+  if (!IP?.id) return
+  const { data: learners } = await sb.from('learner_profiles')
+    .select('*,profile:profiles!user_id(full_name,email)')
+    .eq('current_instructor_id', IP.id)
+  const list = document.getElementById('students-list')
+  if (!learners?.length) { list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No students yet</div>'; return }
+  const { data: allSkills } = await sb.from('student_skill_progress')
+    .select('*,skill:skills(name)').eq('instructor_id', IP.id)
+  list.innerHTML = learners.map((l, i) => {
+    const name = l.profile?.full_name || 'Student'
+    const skills = allSkills?.filter(s => s.learner_id === l.user_id) || []
+    const done = skills.filter(s => s.status === 'completed').length
+    const pct = skills.length ? Math.round(done / skills.length * 100) : 0
+    const pills = skills.slice(0, 5).map(s =>
+      '<span class="sp ' + (s.status==='completed'?'sp-done':s.status==='in_progress'?'sp-ip':'sp-todo') + '">' + (s.skill?.name||'') + '</span>'
+    ).join('')
+    return '<div class="student-card">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">'
+      + '<div class="nav-av blue" style="width:40px;height:40px;border-radius:50%;flex-shrink:0;background:' + COLOURS[i%COLOURS.length] + '">' + ini(name) + '</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:1px">' + (l.total_lessons||0) + ' lessons · Theory: ' + (l.theory_test_passed?'✅':'❌') + '</div></div>'
+      + '<div style="font-size:18px;font-weight:800;color:' + (pct>=70?'var(--g)':'var(--b)') + '">' + pct + '%</div></div>'
+      + '<div class="prog-wrap"><div class="prog-fill ' + (pct>=70?'green':'blue') + '" style="width:' + pct + '%"></div></div>'
+      + '<div class="skill-pills" style="margin-top:6px">' + pills + '</div></div>'
+  }).join('')
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────
+async function loadMessages() {
+  const { data } = await sb.from('conversations')
+    .select('*,learner:profiles!learner_id(full_name)')
+    .eq('instructor_id', CU.id).order('last_message_at', { ascending: false })
+  const wrap = document.getElementById('i-inbox-items')
+  if (!data?.length) { wrap.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No messages yet</div>'; return }
+  wrap.innerHTML = data.map((c, i) => {
+    const name = c.learner?.full_name || 'Student'
+    return '<div class="inbox-item" onclick="openIChat(\'' + c.id + '\',\'' + name + '\')">'
+      + '<div class="ii-av" style="background:' + COLOURS[i%COLOURS.length] + '">' + ini(name) + '</div>'
+      + '<div style="flex:1;min-width:0"><div class="ii-name">' + name + '</div>'
+      + '<div class="ii-prev">' + (c.last_message||'No messages yet') + '</div></div>'
+      + '<div style="font-size:10px;color:var(--n4)">' + (c.last_message_at?fmtTime(c.last_message_at):'') + '</div></div>'
+  }).join('')
+}
+
+async function openIChat(convId, name) {
+  document.getElementById('i-inbox-wrap').style.display = 'none'
+  const cv = document.getElementById('i-chat-view'); cv.classList.add('open')
+  const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
+  cv.innerHTML = '<div class="chat-top" onclick="closeIChat()">'
+    + '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--n)" stroke-width="2" stroke-linecap="round"><path d="M12 15l-5-5 5-5"/></svg>'
+    + '<div class="ii-av" style="background:var(--b);width:32px;height:32px;font-size:10px">' + ini(name) + '</div>'
+    + '<div><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div><div style="font-size:9px;color:var(--b)">Online</div></div></div>'
+    + '<div class="chat-msgs" id="i-chat-msgs">'
+    + (msgs||[]).map(m => '<div><div class="cmsg ' + (m.sender_id===CU.id?'sent-b':'recv') + '">' + m.content + '</div>'
+      + '<div class="cmsg-t" style="' + (m.sender_id===CU.id?'text-align:right':'') + '">' + fmtTime(m.created_at) + '</div></div>').join('')
+    + '</div>'
+    + '<div class="chat-input-row">'
+    + '<input id="i-chat-inp" placeholder="Message ' + name.split(' ')[0] + '…" onkeydown="if(event.key===\'Enter\')sendIMsg(\'' + convId + '\')">'
+    + '<button class="send-btn blue" onclick="sendIMsg(\'' + convId + '\')">'
+    + '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 2l2 6-2 6 12-6z" fill="white"/></svg></button></div>'
+  document.getElementById('i-chat-msgs').scrollTop = 99999
+}
+
+async function sendIMsg(convId) {
+  const inp = document.getElementById('i-chat-inp'); const txt = inp.value.trim(); if (!txt) return
+  const msgs = document.getElementById('i-chat-msgs'); const now = new Date()
+  const d = document.createElement('div')
+  d.innerHTML = '<div><div class="cmsg sent-b">' + txt + '</div><div class="cmsg-t" style="text-align:right">' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + '</div></div>'
+  msgs.appendChild(d); msgs.scrollTop = 99999; inp.value = ''
+  await sb.from('messages').insert({ conversation_id: convId, sender_id: CU.id, content: txt, type: 'text' })
+}
+
+function closeIChat() {
+  document.getElementById('i-inbox-wrap').style.display = ''
+  document.getElementById('i-chat-view').classList.remove('open')
+  document.getElementById('i-chat-view').innerHTML = ''
+}
+
+// ── PROFILE ───────────────────────────────────────────────────
+async function loadProfile() {
+  const { data: ip } = await sb.from('instructor_profiles').select('*').eq('user_id', CU.id).single()
+  IP = ip
+  const { data: p } = await sb.from('profiles').select('*').eq('id', CU.id).single()
+  CP = p
+
+  if (p) {
+    let name = p.full_name
+    if (!name || name === p.id) {
+      const { data: { user } } = await sb.auth.getUser()
+      name = user?.user_metadata?.full_name || p.email?.split('@')[0] || '?'
+      if (name) await sb.from('profiles').update({ full_name: name }).eq('id', p.id)
+    }
+    const initial = (name||'').split(' ')[0]?.[0]?.toUpperCase() || '?'
+    document.getElementById('nav-av').textContent = initial
+    document.getElementById('prof-av-big').textContent = initial
+    document.getElementById('dd-name').textContent = name
+    document.getElementById('prof-name').textContent = name
+    document.getElementById('dash-hello').textContent = 'Hello, ' + (name.split(' ')[0]) + ' 👋'
+    document.getElementById('p-email').textContent = p.email || '–'
+    document.getElementById('p-loc').textContent = p.city || p.postcode || '–'
+  }
+  if (ip) {
+    if (ip.subscription_status !== 'active') document.getElementById('pending-banner').style.display = 'flex'
+    document.getElementById('ps-rate').textContent = (ip.pass_rate||0) + '%'
+    document.getElementById('ps-lessons').textContent = ip.total_lessons || 0
+    document.getElementById('ps-reviews').textContent = ip.total_reviews || 0
+    document.getElementById('ps-rating').textContent = ip.avg_rating || '–'
+    document.getElementById('p-car').textContent = ip.car_make_model || '–'
+    document.getElementById('p-centre').textContent = ip.test_centre || '–'
+    document.getElementById('p-sub').textContent = ip.subscription_status === 'active' ? '✓ Active — £40/mo' : '❌ Inactive'
+    document.getElementById('p-sub').style.color = ip.subscription_status === 'active' ? 'var(--g)' : 'var(--red)'
+    if (ip.avg_rating >= 4.8) document.getElementById('prof-badge').style.display = 'inline-flex'
+    const { data: listings } = await sb.from('instructor_listings').select('listing_type:listing_types(name)').eq('instructor_id', ip.id)
+    if (listings?.length) document.getElementById('p-listings').innerHTML = listings.map(l => '<span class="ltag">' + l.listing_type?.name + '</span>').join('')
+  }
+}
+
+async function manageSub() {
+  try { const d = await api('/stripe/portal', 'POST'); if (d.url) window.location.href = d.url }
+  catch(e) { toast('Contact support to manage subscription') }
+}
+
+
+// Fix switchTab to handle 6 panels
+const _origSwitch = switchTab
+function switchTab(i) {
+  for (let j = 0; j < 6; j++) {
+    document.getElementById('tab'+j)?.classList.toggle('active', j===i)
+    document.getElementById('p'+j)?.classList.toggle('active', j===i)
+  }
+  closeDD()
+  if (i === 5) loadSlots()
+}
+
+// ── AVAILABILITY ──────────────────────────────────────────────
+async function addSlot() {
+  const start = document.getElementById('slot-start').value
+  const end   = document.getElementById('slot-end').value
+  const type  = document.getElementById('slot-type').value
+  if (!start || !end) { toast('Please set start and end times'); return }
+  if (new Date(end) <= new Date(start)) { toast('End time must be after start time'); return }
+  const { error } = await sb.from('availability_slots').insert({
+    instructor_id: IP?.id,
+    start_time: new Date(start).toISOString(),
+    end_time: new Date(end).toISOString(),
+    slot_type: type,
+    is_booked: false,
+  })
+  if (error) { toast('Error: ' + error.message); return }
+  toast('✅ Slot added')
+  document.getElementById('slot-start').value = ''
+  document.getElementById('slot-end').value = ''
+  loadSlots()
+}
+
+async function loadSlots() {
+  if (!IP?.id) return
+  const { data } = await sb.from('availability_slots')
+    .select('*').eq('instructor_id', IP.id)
+    .gte('end_time', new Date().toISOString())
+    .order('start_time', { ascending: true })
+  const list = document.getElementById('slots-list')
+  if (!data?.length) { list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--n3);font-size:13px">No upcoming slots. Add some above so learners can request lessons.</div>'; return }
+  list.innerHTML = data.map(s => {
+    const isBlocked = s.slot_type === 'blocked'
+    const isBooked  = s.is_booked
+    const color = isBlocked ? 'var(--red)' : isBooked ? 'var(--warn)' : 'var(--g)'
+    const label = isBlocked ? '🚫 Blocked' : isBooked ? '⏳ Pending request' : '✅ Open'
+    return '<div style="background:var(--w);border:1.5px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid ' + color + '">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between">'
+      + '<div><div style="font-size:13px;font-weight:700;color:var(--n)">' + fmtDate(s.start_time) + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:2px">' + fmtTime(s.start_time) + ' – ' + fmtTime(s.end_time) + '</div></div>'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:11px;font-weight:600;color:' + color + '">' + label + '</span>'
+      + '<button onclick="deleteSlot(\'' + s.id + '\')" style="width:26px;height:26px;border:1.5px solid var(--bdr);border-radius:50%;background:var(--w);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">×</button>'
+      + '</div></div></div>'
+  }).join('')
+}
+
+async function deleteSlot(id) {
+  await sb.from('availability_slots').delete().eq('id', id)
+  toast('Slot removed'); loadSlots()
+}
+
+// ── BOOKING REQUESTS — show request note, approve/decline ──────
+// Override loadIBookings to show request notes
+const _origLoadIBookings = loadIBookings
+async function loadIBookings(status, btn) {
+  if (btn) { document.querySelectorAll('.otab').forEach(t => t.classList.remove('on')); btn.classList.add('on') }
+  const { data } = await sb.from('bookings')
+    .select('*,learner:profiles!learner_id(full_name),slot:availability_slots(start_time,end_time)')
+    .eq('instructor_id', IP?.id).eq('status', status)
+    .order('created_at', { ascending: false })
+  const list = document.getElementById('i-bookings')
+  if (!data?.length) { list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No ' + status + ' bookings</div>'; return }
+  list.innerHTML = data.map((b, i) => {
+    const name = b.learner?.full_name || 'Student'
+    const slotInfo = b.slot ? fmtDate(b.slot.start_time) + ' ' + fmtTime(b.slot.start_time) : fmtDate(b.scheduled_at)
+    return '<div class="bk2 ' + b.status + '">'
+      + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">'
+      + '<div class="nav-av blue" style="width:38px;height:38px;flex-shrink:0;background:' + COLOURS[i%COLOURS.length] + ';border-radius:50%;font-size:12px">' + ini(name) + '</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:1px">📅 ' + slotInfo + '</div></div>'
+      + '<span class="badge ' + (b.status==='confirmed'?'badge-conf':b.status==='pending'?'badge-pend':'badge-done') + '">' + b.status + '</span></div>'
+      + (b.request_note ? '<div style="background:var(--bg);border-radius:6px;padding:9px;margin-bottom:9px;font-size:12px;color:var(--n2);border:1px solid var(--bdr);line-height:1.5">💬 <em>' + b.request_note + '</em></div>' : '')
+      + '<div style="display:flex;gap:7px">'
+      + (b.status==='pending' ? '<button class="ba ba-b" onclick="approveBooking(\'' + b.id + '\',\'' + (b.slot_id||'') + '\')">✓ Approve</button>' : '')
+      + (b.status==='pending' ? '<button class="ba ba-s" onclick="declineBooking(\'' + b.id + '\',\'' + (b.slot_id||'') + '\')">✕ Decline</button>' : '')
+      + (b.status==='confirmed' ? '<button class="ba ba-s" onclick="declineBooking(\'' + b.id + '\',\'' + (b.slot_id||'') + '\')">Cancel</button>' : '')
+      + '<button class="ba ba-s" onclick="switchTab(3)">💬 Message</button>'
+      + '</div></div>'
+  }).join('')
+}
+
+async function approveBooking(bookingId, slotId) {
+  await sb.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId)
+  if (slotId) await sb.from('availability_slots').update({ is_booked: true }).eq('id', slotId)
+  toast('✅ Booking confirmed'); loadIBookings('pending')
+}
+
+async function declineBooking(bookingId, slotId) {
+  await sb.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
+  if (slotId) await sb.from('availability_slots').update({ is_booked: false }).eq('id', slotId)
+  toast('Booking declined'); loadIBookings('pending')
+}
+
+async function signOut() { await sb.auth.signOut(); window.location.href = '/index.html' }
+</script>
+</body>
+</html>

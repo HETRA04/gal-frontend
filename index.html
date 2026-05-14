@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Get A Lesson — Find Your Driving Instructor</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+#main-map{height:380px;width:100%;z-index:1}
+.view-toggle{display:flex;background:var(--tag);border-radius:8px;padding:3px;gap:3px}
+.vt-btn{flex:1;padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--F);color:var(--n3);background:none;transition:all .2s;white-space:nowrap}
+.vt-btn.on{background:var(--w);color:var(--n);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.loc-banner{background:var(--bl);border-bottom:1px solid #bfdbfe;padding:9px 14px;font-size:12px;color:var(--bd);display:flex;align-items:center;gap:8px}
+
+/* DROPDOWN */
+.prof-dd{display:none;position:fixed;top:58px;right:14px;background:var(--w);border:1.5px solid var(--bdr);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:180px;overflow:hidden}
+.prof-dd.open{display:block}
+.pd-hdr{padding:13px 15px;border-bottom:1px solid var(--bdr);background:var(--bg)}
+.pd-name{font-size:13px;font-weight:700;color:var(--n)}
+.pd-role{font-size:11px;color:var(--n3);margin-top:2px}
+.pd-btn{width:100%;padding:11px 15px;text-align:left;background:none;border:none;border-bottom:1px solid var(--bdr);cursor:pointer;font-size:13px;font-weight:600;color:var(--n);font-family:var(--F);display:flex;align-items:center;gap:9px;transition:background .15s}
+.pd-btn:last-child{border-bottom:none}
+.pd-btn:hover{background:var(--bg)}
+.pd-btn.red{color:var(--red)}
+
+/* SETTINGS PAGE */
+.settings-page{display:none;position:fixed;inset:0;background:var(--bg);z-index:700;flex-direction:column;overflow-y:auto}
+.settings-page.open{display:flex}
+.settings-nav{height:56px;background:var(--w);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:10}
+.back-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--bdr);background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.back-btn:hover{background:var(--tag)}
+.settings-body{padding:16px;max-width:500px;margin:0 auto;width:100%}
+.settings-section{background:var(--w);border:1.5px solid var(--bdr);border-radius:12px;padding:16px;margin-bottom:14px}
+.settings-section h3{font-size:11px;font-weight:700;color:var(--n3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:13px}
+
+/* BOTTOM NAV */
+.mob-tab-bar{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--w);border-top:1.5px solid var(--bdr);display:none;z-index:500;box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.mob-tab-bar.visible{display:flex}
+.mob-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;flex:1;padding:6px 4px;opacity:.35;transition:opacity .15s;border:none;background:none;-webkit-tap-highlight-color:transparent}
+.mob-tab.active{opacity:1}
+.mob-tab svg{width:22px;height:22px;fill:none;stroke:var(--n3);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mob-tab span{font-size:10px;font-weight:700;color:var(--n3)}
+.mob-tab.active svg{stroke:var(--g)}
+.mob-tab.active span{color:var(--g)}
+
+/* PANELS */
+.panel{display:none;flex-direction:column;min-height:calc(100vh - 122px);padding-bottom:68px}
+.panel.active{display:flex}
+
+/* JOURNEY */
+.j-stats-row{display:flex;background:var(--w);margin:0 14px;border-radius:12px;margin-top:-18px;position:relative;z-index:1;border:1px solid var(--bdr);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.jst{flex:1;padding:13px 6px;text-align:center;border-right:1px solid var(--bdr)}
+.jst:last-child{border-right:none}
+</style>
+</head>
+<body>
+<div id="loader" style="display:none"><div class="spinner"></div></div>
+<div id="toast"></div>
+
+<!-- ══ SETTINGS PAGE ══ -->
+<div class="settings-page" id="settings-page">
+  <div class="settings-nav">
+    <button class="back-btn" onclick="closeSettings()">
+      <svg width="16" height="16" fill="none" stroke="var(--n2)" stroke-width="2" stroke-linecap="round" viewBox="0 0 20 20"><path d="M12 15l-5-5 5-5"/></svg>
+    </button>
+    <span style="font-size:16px;font-weight:700;color:var(--n)">Settings</span>
+  </div>
+  <div class="settings-body">
+    <div class="settings-section">
+      <h3>Profile</h3>
+      <div class="form-group"><label>Full name</label><input type="text" id="s-name" placeholder="Your full name"></div>
+      <div class="form-group"><label>Phone number</label><input type="tel" id="s-phone" placeholder="+44 7700 000000"></div>
+    </div>
+    <div class="settings-section">
+      <h3>Location &amp; test preferences</h3>
+      <div class="form-group"><label>Postcode</label><input type="text" id="s-postcode" placeholder="M1 1AA"></div>
+      <div class="form-group"><label>City</label><input type="text" id="s-city" placeholder="Manchester"></div>
+      <div class="form-group"><label>Test centre</label>
+        <select id="s-centre"></select>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Lesson preferences</h3>
+      <div class="form-group"><label>Transmission</label>
+        <select id="s-trans"><option value="manual">Manual</option><option value="automatic">Automatic</option><option value="no_preference">No preference</option></select>
+      </div>
+      <div class="form-group"><label>Instructor gender preference</label>
+        <select id="s-gend"><option value="no_preference">No preference</option><option value="male">Male</option><option value="female">Female</option></select>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--bdr)">
+        <span style="font-size:13px;font-weight:500;color:var(--n)">Theory test passed?</span>
+        <label class="tgl"><input type="checkbox" id="s-theory"><div class="tslider"></div></label>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Account</h3>
+      <div class="irow"><span class="irl">Email</span><span class="irv" id="s-email-display">–</span></div>
+      <div class="irow"><span class="irl">Member since</span><span class="irv" id="s-joined">–</span></div>
+    </div>
+    <button style="width:100%;padding:12px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--F);margin-top:6px" id="save-btn" onclick="saveSettings()">Save changes</button>
+    <button class="btn btn-outline" style="margin-top:8px;color:var(--red);border-color:rgba(239,68,68,.3)" onclick="signOut()">Log out</button>
+    <div style="height:32px"></div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="app">
+
+  <!-- PROFILE DROPDOWN -->
+  <div class="prof-dd" id="prof-dd">
+    <div class="pd-hdr">
+      <div class="pd-name" id="dd-name">–</div>
+      <div class="pd-role" id="dd-role">Guest</div>
+    </div>
+    <button class="pd-btn" id="dd-settings-btn" onclick="openSettings()" style="display:none">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Account settings
+    </button>
+    <button class="pd-btn red" id="dd-logout-btn" onclick="signOut()" style="display:none">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Log out
+    </button>
+    <button class="pd-btn" id="dd-login-btn" onclick="window.location.href='/login.html'" style="display:none">
+      Sign in
+    </button>
+    <button class="pd-btn" id="dd-register-btn" onclick="window.location.href='/register.html'" style="display:none">
+      Create account
+    </button>
+  </div>
+
+  <!-- TOP NAV -->
+  <nav class="top-nav">
+    <a href="/index.html" class="nav-logo">get a <em>lesson.</em></a>
+    <div class="nav-right">
+      <button class="btn-instr" id="instr-btn" onclick="openInstrSignup()">Are you an instructor?</button>
+      <div class="nav-av green" id="nav-av" onclick="toggleDD()" style="cursor:pointer;font-size:16px;font-weight:800;display:none">?</div>
+      <button class="btn-login" id="login-btn" onclick="window.location.href='/login.html'">Sign in</button>
+    </div>
+  </nav>
+
+  <!-- ══ EXPLORE PANEL (default — public + logged in) ══ -->
+  <div class="panel active" id="p0">
+    <div class="hero-green hero-pad" style="padding:20px 16px 18px">
+      <h2 style="font-size:21px;margin-bottom:4px">Find your driving instructor</h2>
+      <p style="margin-bottom:12px">Top-rated instructors across Manchester.</p>
+      <div class="search-row">
+        <input placeholder="Search name, area or lesson type" id="search-inp" onkeydown="if(event.key==='Enter')doSearch()">
+        <button onclick="doSearch()">Search</button>
+      </div>
+    </div>
+    <div id="loc-banner" class="loc-banner" style="display:none">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span id="loc-text">Showing instructors near you</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 13px;background:var(--w);border-bottom:1px solid var(--bdr);gap:10px;flex-wrap:wrap">
+      <div class="filter-bar" id="filter-bar" style="padding:0;border:none;flex:1;min-width:0"></div>
+      <div class="view-toggle" style="flex-shrink:0">
+        <button class="vt-btn on" id="vt-map" onclick="setView('map')">Map</button>
+        <button class="vt-btn" id="vt-list" onclick="setView('list')">List</button>
+      </div>
+    </div>
+    <div id="view-map"><div id="main-map"></div></div>
+    <div id="view-list" style="display:none"><div class="gig-grid" id="gig-grid"></div></div>
+  </div>
+
+  <!-- ══ MESSAGES PANEL ══ -->
+  <div class="panel" id="p1">
+    <div id="inbox-wrap">
+      <div class="page-hdr"><h2>Messages</h2></div>
+      <div id="inbox-items"></div>
+    </div>
+    <div id="chat-view" class="chat-overlay"></div>
+  </div>
+
+  <!-- ══ BOOKINGS PANEL ══ -->
+  <div class="panel" id="p2">
+    <div class="page-hdr"><h2>My Bookings</h2></div>
+    <div class="otabs">
+      <button class="otab on" onclick="loadBookings('confirmed',this)">Confirmed</button>
+      <button class="otab" onclick="loadBookings('pending',this)">Pending</button>
+      <button class="otab" onclick="loadBookings('completed',this)">History</button>
+    </div>
+    <div id="bookings-list" style="padding:10px 13px"></div>
+  </div>
+
+  <!-- ══ JOURNEY PANEL ══ -->
+  <div class="panel" id="p3">
+    <div class="hero-green hero-pad" style="padding:20px 16px 22px">
+      <h2 style="font-size:18px;font-weight:800;color:#fff;margin-bottom:3px">My Progress</h2>
+      <p style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:12px">Track your journey to test day</p>
+      <div style="font-size:38px;font-weight:800;color:#fff;line-height:1"><span id="j-pct">0</span>% <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.4)">test ready</span></div>
+      <div style="margin:9px 0 4px;background:rgba(255,255,255,.15);border-radius:6px;height:8px;overflow:hidden">
+        <div style="height:100%;border-radius:6px;background:var(--g);transition:width .5s" id="j-bar"></div>
+      </div>
+      <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:4px" id="j-sub">Loading…</div>
+    </div>
+    <div class="j-stats-row">
+      <div class="jst"><div style="font-size:17px;font-weight:800;color:var(--n)" id="js-lessons">0</div><div style="font-size:10px;color:var(--n3);margin-top:2px">Lessons</div></div>
+      <div class="jst"><div style="font-size:17px;font-weight:800;color:var(--n)" id="js-done">0</div><div style="font-size:10px;color:var(--n3);margin-top:2px">Skills done</div></div>
+      <div class="jst"><div style="font-size:17px;font-weight:800;color:var(--n)" id="js-rem">0</div><div style="font-size:10px;color:var(--n3);margin-top:2px">Remaining</div></div>
+      <div class="jst"><div style="font-size:17px;font-weight:800;color:var(--n)" id="js-theory">–</div><div style="font-size:10px;color:var(--n3);margin-top:2px">Theory</div></div>
+    </div>
+    <div class="man-grid" id="man-grid"></div>
+  </div>
+
+  <!-- ══ PROFILE PANEL ══ -->
+  <div class="panel" id="p4">
+    <div class="prof-cover hero-green">
+      <div class="prof-av-wrap">
+        <div class="prof-av-big hero-green" id="prof-av-big" style="font-size:24px;font-weight:800">?</div>
+      </div>
+    </div>
+    <div class="prof-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:18px;font-weight:800;color:var(--n)" id="prof-name">–</div>
+          <div style="font-size:12px;color:var(--n3);margin-top:2px">Learner Driver</div>
+        </div>
+        <button class="btn btn-outline" style="width:auto;padding:7px 14px;font-size:12px" onclick="openSettings()">⚙️ Settings</button>
+      </div>
+      <div class="prof-stats">
+        <div><div class="ps-val" id="p-lessons">0</div><div class="ps-lbl">Lessons</div></div>
+        <div><div class="ps-val" id="p-progress">0%</div><div class="ps-lbl">Progress</div></div>
+        <div><div class="ps-val" id="p-theory">–</div><div class="ps-lbl">Theory</div></div>
+      </div>
+    </div>
+    <div class="info-card">
+      <h3>Account details</h3>
+      <div class="irow"><span class="irl">Email</span><span class="irv" id="p-email">–</span></div>
+      <div class="irow"><span class="irl">Location</span><span class="irv" id="p-location">–</span></div>
+      <div class="irow"><span class="irl">Test centre</span><span class="irv" id="p-centre">–</span></div>
+      <div class="irow"><span class="irl">Instructor</span><span class="irv" id="p-instructor">Not assigned</span></div>
+      <div class="irow"><span class="irl">Transmission</span><span class="irv" id="p-trans">–</span></div>
+    </div>
+    <div style="padding:10px 14px 28px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-outline" style="color:var(--red);border-color:rgba(239,68,68,.3)" onclick="signOut()">Log out</button>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV (learner only) -->
+  <div class="mob-tab-bar" id="bottom-nav">
+    <button class="mob-tab active" id="tab0" onclick="switchTab(0)">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+      <span>Explore</span>
+    </button>
+    <button class="mob-tab" id="tab1" onclick="switchTab(1)">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span>Messages</span>
+    </button>
+    <button class="mob-tab" id="tab2" onclick="switchTab(2)">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M8 10h8M8 14h5"/></svg>
+      <span>Bookings</span>
+    </button>
+    <button class="mob-tab" id="tab3" onclick="switchTab(3)">
+      <svg viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+      <span>Journey</span>
+    </button>
+    <button class="mob-tab" id="tab4" onclick="switchTab(4)">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profile</span>
+    </button>
+  </div>
+</div>
+
+<!-- INSTRUCTOR DETAIL MODAL -->
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-sheet"><button class="mclose" onclick="closeModal()">&#215;</button><div class="mhandle"></div><div id="modal-body"></div></div>
+</div>
+
+<!-- INSTRUCTOR SIGNUP MODAL -->
+<div class="modal-bg" id="instr-modal" onclick="if(event.target===this)closeInstrModal()">
+  <div class="modal-sheet" style="max-height:95vh"><button class="mclose" onclick="closeInstrModal()">&#215;</button><div class="mhandle"></div><div id="instr-modal-body"></div></div>
+</div>
+
+<!-- LEARNER SIGNUP MODAL -->
+<div class="modal-bg" id="learner-modal" onclick="if(event.target===this)closeLearnerModal()">
+  <div class="modal-sheet"><button class="mclose" onclick="closeLearnerModal()">&#215;</button><div class="mhandle"></div><div id="learner-modal-body"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/testcentres.js"></script>
+<script src="/js/home.js"></script>
+<script>
+// ── AUTH STATE ────────────────────────────────────────────────
+let CU = null, CP = null, LP = null, isLoggedIn = false
+
+;(async () => {
+  const user = await getUser()
+  if (user) {
+    const profile = await getProfile(user.id)
+    if (profile) {
+      // Redirect instructors and admins away
+      if (profile.role === 'instructor') { window.location.href = '/instructor.html'; return }
+      if (profile.role === 'admin' || user.email === CONFIG.ADMIN_EMAIL) { window.location.href = '/admin.html'; return }
+      // Learner — set up full app
+      CU = user; CP = profile; isLoggedIn = true
+      setupLearnerNav(profile)
+      await loadLearnerData()
+    }
+  }
+  setupPublicNav()
+  // home.js handles map + instructors
+})()
+
+function setupLearnerNav(profile) {
+  let name = profile.full_name
+  if (!name || name === profile.id) name = profile.email?.split('@')[0] || '?'
+  const initial = (name||'').split(' ')[0]?.[0]?.toUpperCase() || '?'
+
+  // Show avatar, hide sign in + instructor button
+  document.getElementById('nav-av').style.display = 'flex'
+  document.getElementById('nav-av').textContent = initial
+  document.getElementById('login-btn').style.display = 'none'
+  document.getElementById('instr-btn').style.display = 'none'
+
+  // Dropdown
+  document.getElementById('dd-name').textContent = name
+  document.getElementById('dd-role').textContent = 'Learner account'
+  document.getElementById('dd-settings-btn').style.display = 'flex'
+  document.getElementById('dd-logout-btn').style.display = 'flex'
+
+  // Show bottom nav
+  document.getElementById('bottom-nav').classList.add('visible')
+}
+
+function setupPublicNav() {
+  document.getElementById('nav-av').style.display = 'none'
+  document.getElementById('login-btn').style.display = 'block'
+  document.getElementById('instr-btn').style.display = 'block'
+  document.getElementById('dd-login-btn').style.display = 'block'
+  document.getElementById('dd-register-btn').style.display = 'block'
+}
+
+// ── DROPDOWN ─────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  const dd = document.getElementById('prof-dd')
+  const av = document.getElementById('nav-av')
+  if (dd && !dd.contains(e.target) && e.target !== av) dd.classList.remove('open')
+})
+function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
+
+// ── TABS ─────────────────────────────────────────────────────
+function switchTab(i) {
+  for (let j = 0; j < 5; j++) {
+    document.getElementById('tab'+j)?.classList.toggle('active', j===i)
+    document.getElementById('p'+j)?.classList.toggle('active', j===i)
+  }
+  document.getElementById('prof-dd').classList.remove('open')
+  // Refresh map size when switching to explore
+  if (i === 0 && leafMap) leafMap.invalidateSize()
+}
+
+// ── LOAD LEARNER DATA ─────────────────────────────────────────
+async function loadLearnerData() {
+  await loadProfile()
+  await Promise.all([loadBookings('confirmed'), loadMessages(), loadProgress()])
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('prof-dd').classList.remove('open')
+  if (CP) {
+    document.getElementById('s-name').value = CP.full_name || ''
+    document.getElementById('s-phone').value = CP.phone || ''
+    document.getElementById('s-postcode').value = CP.postcode || ''
+    document.getElementById('s-city').value = CP.city || ''
+    document.getElementById('s-email-display').textContent = CP.email || '–'
+    document.getElementById('s-joined').textContent = CP.created_at ? fmtDate(CP.created_at) : '–'
+  }
+  if (LP) {
+    if(window.buildTestCentreSelect) buildTestCentreSelect('s-centre', LP.test_centre || ''); else document.getElementById('s-centre').value = LP.test_centre || ''
+    document.getElementById('s-trans').value = LP.transmission_pref || 'manual'
+    document.getElementById('s-gend').value = LP.gender_pref || 'no_preference'
+    document.getElementById('s-theory').checked = LP.theory_test_passed || false
+  }
+  document.getElementById('settings-page').classList.add('open')
+}
+function closeSettings() { document.getElementById('settings-page').classList.remove('open') }
+
+async function saveSettings() {
+  const btn = document.getElementById('save-btn')
+  btn.textContent = 'Saving…'; btn.disabled = true
+  await sb.from('profiles').update({
+    full_name: document.getElementById('s-name').value.trim(),
+    phone: document.getElementById('s-phone').value.trim(),
+    postcode: document.getElementById('s-postcode').value.trim(),
+    city: document.getElementById('s-city').value.trim(),
+  }).eq('id', CU.id)
+  await sb.from('learner_profiles').update({
+    test_centre: document.getElementById('s-centre').value,
+    transmission_pref: document.getElementById('s-trans').value,
+    gender_pref: document.getElementById('s-gend').value,
+    theory_test_passed: document.getElementById('s-theory').checked,
+  }).eq('user_id', CU.id)
+  toast('✅ Settings saved!'); btn.textContent = 'Save changes'; btn.disabled = false
+  closeSettings(); await loadProfile()
+}
+
+// ── BOOKINGS ──────────────────────────────────────────────────
+async function loadBookings(status, btn) {
+  if (!CU) return
+  if (btn) { document.querySelectorAll('.otab').forEach(t => t.classList.remove('on')); btn.classList.add('on') }
+  const { data } = await sb.from('bookings')
+    .select('*,instructor:instructor_profiles!instructor_id(profile:profiles!user_id(full_name))')
+    .eq('learner_id', CU.id).eq('status', status).order('scheduled_at', { ascending: true })
+  const list = document.getElementById('bookings-list')
+  if (!data?.length) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No ' + status + ' bookings.<br><br><a onclick="switchTab(0)" style="color:var(--g);font-weight:600;cursor:pointer">Find an instructor →</a></div>'
+    return
+  }
+  list.innerHTML = data.map(b => {
+    const name = b.instructor?.profile?.full_name || 'Instructor'
+    return '<div class="bk-card"><div class="bk-top"><div class="bk-av" style="background:var(--b)">' + ini(name) + '</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div>'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:2px">Standard Lesson</div></div>'
+      + '<span class="badge ' + (b.status==='confirmed'?'badge-conf':b.status==='pending'?'badge-pend':'badge-done') + '">' + b.status + '</span></div>'
+      + '<div class="bk-meta"><span>📅 ' + fmtDate(b.scheduled_at) + '</span><span>⏱ ' + fmtTime(b.scheduled_at) + '</span></div>'
+      + '<div class="bk-actions"><button class="ba ba-g" onclick="switchTab(1)">💬 Message</button>'
+      + (b.status==='pending'?'<button class="ba ba-s" onclick="cancelBk(\'' + b.id + '\')">Cancel</button>':'')
+      + '</div></div>'
+  }).join('')
+}
+async function cancelBk(id) {
+  await sb.from('bookings').update({ status: 'cancelled' }).eq('id', id)
+  toast('Booking cancelled'); loadBookings('pending')
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────
+async function loadMessages() {
+  if (!CU) return
+  const { data } = await sb.from('conversations')
+    .select('*,instructor:profiles!instructor_id(full_name)')
+    .eq('learner_id', CU.id).order('last_message_at', { ascending: false })
+  const wrap = document.getElementById('inbox-items')
+  if (!data?.length) {
+    wrap.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No messages yet.<br><br><a onclick="switchTab(0)" style="color:var(--g);font-weight:600;cursor:pointer">Find an instructor →</a></div>'
+    return
+  }
+  wrap.innerHTML = data.map((c, i) => {
+    const name = c.instructor?.full_name || 'Instructor'
+    return '<div class="inbox-item" onclick="openChat(\'' + c.id + '\',\'' + name + '\')">'
+      + '<div class="ii-av" style="background:' + COLOURS[i%COLOURS.length] + '">' + ini(name) + '</div>'
+      + '<div style="flex:1;min-width:0"><div class="ii-name">' + name + '</div>'
+      + '<div class="ii-prev">' + (c.last_message||'No messages yet') + '</div></div>'
+      + '<div style="font-size:10px;color:var(--n4)">' + (c.last_message_at?fmtTime(c.last_message_at):'') + '</div></div>'
+  }).join('')
+}
+
+async function openChat(convId, name) {
+  document.getElementById('inbox-wrap').style.display = 'none'
+  const cv = document.getElementById('chat-view'); cv.classList.add('open')
+  const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
+  cv.innerHTML = '<div class="chat-top" onclick="closeChat()">'
+    + '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--n)" stroke-width="2" stroke-linecap="round"><path d="M12 15l-5-5 5-5"/></svg>'
+    + '<div class="ii-av" style="background:var(--g);width:32px;height:32px;font-size:10px">' + ini(name) + '</div>'
+    + '<div><div style="font-size:13px;font-weight:700;color:var(--n)">' + name + '</div><div style="font-size:9px;color:var(--g)">Online</div></div></div>'
+    + '<div class="chat-msgs" id="chat-msgs">'
+    + (msgs||[]).map(m => '<div><div class="cmsg ' + (m.sender_id===CU.id?'sent-g':'recv') + '">' + m.content + '</div>'
+      + '<div class="cmsg-t" style="' + (m.sender_id===CU.id?'text-align:right':'') + '">' + fmtTime(m.created_at) + '</div></div>').join('')
+    + '</div><div class="chat-input-row">'
+    + '<input id="chat-inp" placeholder="Message ' + name.split(' ')[0] + '…" onkeydown="if(event.key===\'Enter\')sendMsg(\'' + convId + '\')">'
+    + '<button class="send-btn green" onclick="sendMsg(\'' + convId + '\')">'
+    + '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 2l2 6-2 6 12-6z" fill="white"/></svg></button></div>'
+  document.getElementById('chat-msgs').scrollTop = 99999
+}
+async function sendMsg(convId) {
+  const inp = document.getElementById('chat-inp'); const txt = inp.value.trim(); if (!txt) return
+  const msgs = document.getElementById('chat-msgs'); const now = new Date()
+  const d = document.createElement('div')
+  d.innerHTML = '<div><div class="cmsg sent-g">' + txt + '</div><div class="cmsg-t" style="text-align:right">' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + '</div></div>'
+  msgs.appendChild(d); msgs.scrollTop = 99999; inp.value = ''
+  await sb.from('messages').insert({ conversation_id: convId, sender_id: CU.id, content: txt, type: 'text' })
+}
+function closeChat() {
+  document.getElementById('inbox-wrap').style.display = ''
+  document.getElementById('chat-view').classList.remove('open')
+  document.getElementById('chat-view').innerHTML = ''
+}
+
+// ── PROGRESS ──────────────────────────────────────────────────
+async function loadProgress() {
+  if (!CU) return
+  const { data: lp } = await sb.from('learner_profiles').select('*').eq('user_id', CU.id).single()
+  const { data: skills } = await sb.from('student_skill_progress').select('*,skill:skills(name)').eq('learner_id', CU.id)
+  if (lp) { document.getElementById('js-lessons').textContent = lp.total_lessons||0; document.getElementById('js-theory').textContent = lp.theory_test_passed?'✅':'❌' }
+  if (skills?.length) {
+    const done = skills.filter(s => s.status==='completed').length
+    const pct = Math.round(done/skills.length*100)
+    document.getElementById('j-pct').textContent = pct
+    document.getElementById('j-bar').style.width = pct + '%'
+    document.getElementById('j-sub').textContent = done + ' of ' + skills.length + ' skills complete'
+    document.getElementById('js-done').textContent = done
+    document.getElementById('js-rem').textContent = skills.length - done
+    document.getElementById('man-grid').innerHTML = skills.map(s =>
+      '<div class="man-card ' + (s.status==='completed'?'done':s.status==='in_progress'?'ip':'todo') + '">'
+      + '<div class="man-t">' + (s.skill?.name||'') + '</div>'
+      + '<div class="man-s ' + (s.status==='completed'?'done':s.status==='in_progress'?'ip':'todo') + '">' + (s.status==='completed'?'Complete':s.status==='in_progress'?'In progress':'Not started') + '</div>'
+      + '<div class="man-bar"><div class="man-bar-f ' + (s.status==='completed'?'done':s.status==='in_progress'?'ip':'') + '" style="width:' + (s.progress_pct||0) + '%"></div></div></div>'
+    ).join('')
+  } else { document.getElementById('j-sub').textContent = 'No skills tracked yet' }
+}
+
+// ── PROFILE ───────────────────────────────────────────────────
+async function loadProfile() {
+  if (!CU) return
+  const { data: p } = await sb.from('profiles').select('*').eq('id', CU.id).single()
+  const { data: lp } = await sb.from('learner_profiles')
+    .select('*,instructor:instructor_profiles!current_instructor_id(profile:profiles!user_id(full_name))')
+    .eq('user_id', CU.id).single()
+  CP = p; LP = lp
+  if (p) {
+    let name = p.full_name
+    if (!name || name === p.id) {
+      const { data: { user } } = await sb.auth.getUser()
+      name = user?.user_metadata?.full_name || p.email?.split('@')[0] || '?'
+      if (name) await sb.from('profiles').update({ full_name: name }).eq('id', p.id)
+    }
+    const initial = (name||'').split(' ')[0]?.[0]?.toUpperCase() || '?'
+    document.getElementById('nav-av').textContent = initial
+    document.getElementById('dd-name').textContent = name
+    document.getElementById('prof-av-big').textContent = initial
+    document.getElementById('prof-name').textContent = name
+    document.getElementById('p-email').textContent = p.email || '–'
+    document.getElementById('p-location').textContent = p.city || p.postcode || '–'
+    document.getElementById('p-lessons').textContent = lp?.total_lessons || 0
+    document.getElementById('p-theory').textContent = lp?.theory_test_passed ? '✅' : '❌'
+    document.getElementById('p-centre').textContent = lp?.test_centre || '–'
+    document.getElementById('p-trans').textContent = lp?.transmission_pref || '–'
+    document.getElementById('p-instructor').textContent = lp?.instructor?.profile?.full_name || 'Not assigned'
+  }
+}
+
+async function signOut() { await sb.auth.signOut(); window.location.reload() }
+</script>
+</body>
+</html>

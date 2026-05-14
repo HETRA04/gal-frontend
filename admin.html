@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Get A Lesson</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+.admin-stat{background:var(--w);border:1.5px solid var(--bdr);border-radius:10px;padding:16px;text-align:center}
+.admin-stat-v{font-size:28px;font-weight:800;color:var(--n)}
+.admin-stat-l{font-size:11px;color:var(--n3);margin-top:2px}
+.tab-nav{display:flex;border-bottom:2px solid var(--bdr);margin-bottom:20px}
+.tnav{padding:10px 18px;font-size:13px;font-weight:600;color:var(--n3);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;background:none;border-top:none;border-left:none;border-right:none}
+.tnav.on{color:var(--b);border-bottom-color:var(--b)}
+.user-card{background:var(--w);border:1.5px solid var(--bdr);border-radius:10px;padding:14px;margin-bottom:10px}
+.user-card.pending{border-left:4px solid var(--warn)}
+.user-card.active{border-left:4px solid var(--g)}
+.user-card.inactive{border-left:4px solid var(--n4)}
+</style>
+</head>
+<body>
+<div id="loader"><div class="spinner"></div></div>
+<div id="toast"></div>
+
+<div id="app" style="display:none;min-height:100vh">
+  <nav class="top-nav" style="background:#1e293b;border-color:#334155">
+    <div class="nav-logo" style="color:#fff">get a <em style="color:#1DBF73">lesson.</em> <span style="font-size:11px;font-weight:600;color:#64748b;margin-left:8px">ADMIN</span></div>
+    <div class="nav-right">
+      <span id="admin-email" style="font-size:11px;color:#64748b"></span>
+      <button class="btn-login" style="background:none;color:#94a3b8;border-color:#334155" onclick="signOut()">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="admin-wrap">
+    <!-- STATS -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px" id="stats-grid">
+      <div class="admin-stat"><div class="admin-stat-v" id="s-total">–</div><div class="admin-stat-l">Total users</div></div>
+      <div class="admin-stat"><div class="admin-stat-v" id="s-learners">–</div><div class="admin-stat-l">Learners</div></div>
+      <div class="admin-stat"><div class="admin-stat-v" id="s-instructors">–</div><div class="admin-stat-l">Instructors</div></div>
+      <div class="admin-stat"><div class="admin-stat-v" style="color:var(--warn)" id="s-pending">–</div><div class="admin-stat-l">Pending approval</div></div>
+    </div>
+
+    <!-- TAB NAV -->
+    <div class="tab-nav">
+      <button class="tnav on" onclick="showSection('pending',this)">⏳ Pending approval</button>
+      <button class="tnav" onclick="showSection('instructors',this)">🚗 All instructors</button>
+      <button class="tnav" onclick="showSection('learners',this)">👤 All learners</button>
+      <button class="tnav" onclick="showSection('bookings',this)">📅 Bookings</button>
+    </div>
+
+    <!-- PENDING SECTION -->
+    <div id="section-pending">
+      <h3 style="font-size:15px;font-weight:700;color:var(--n);margin-bottom:12px">Instructors awaiting approval</h3>
+      <div id="pending-list"><div style="color:var(--n3);font-size:13px">Loading…</div></div>
+    </div>
+
+    <!-- INSTRUCTORS SECTION -->
+    <div id="section-instructors" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:15px;font-weight:700;color:var(--n)">All instructors</h3>
+        <input placeholder="Search…" oninput="filterTable('instr-table',this.value)" style="padding:7px 11px;border:1.5px solid var(--bdr);border-radius:6px;font-size:12px;outline:none;width:180px">
+      </div>
+      <div style="overflow-x:auto">
+        <table class="admin-table" id="instr-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Location</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="instr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LEARNERS SECTION -->
+    <div id="section-learners" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:15px;font-weight:700;color:var(--n)">All learners</h3>
+        <input placeholder="Search…" oninput="filterTable('learner-table',this.value)" style="padding:7px 11px;border:1.5px solid var(--bdr);border-radius:6px;font-size:12px;outline:none;width:180px">
+      </div>
+      <div style="overflow-x:auto">
+        <table class="admin-table" id="learner-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Location</th><th>Lessons</th><th>Instructor</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="learner-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BOOKINGS SECTION -->
+    <div id="section-bookings" style="display:none">
+      <h3 style="font-size:15px;font-weight:700;color:var(--n);margin-bottom:12px">Recent bookings</h3>
+      <div style="overflow-x:auto">
+        <table class="admin-table" id="bookings-table">
+          <thead><tr><th>Learner</th><th>Instructor</th><th>Date</th><th>Status</th><th>Price</th></tr></thead>
+          <tbody id="bookings-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- USER DETAIL MODAL -->
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-sheet">
+    <button class="mclose" onclick="closeModal()">&#215;</button>
+    <div class="mhandle"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/js/app.js"></script>
+<script>
+let allPending = [], allInstrs = [], allLearners = [], allBookings = []
+
+;(async () => {
+  showLoader()
+  const user = await getUser()
+  if (!user) { window.location.href = '/login.html'; return }
+
+  // Check admin — either admin role or specific email
+  const profile = await getProfile(user.id)
+  if (!profile || (profile.role !== 'admin' && user.email !== CONFIG.ADMIN_EMAIL)) {
+    window.location.href = '/index.html'; return
+  }
+
+  hideLoader()
+  document.getElementById('app').style.display = 'block'
+  document.getElementById('admin-email').textContent = user.email
+
+  await Promise.all([loadStats(), loadPending(), loadInstructors(), loadLearners(), loadBookings()])
+})()
+
+function showSection(name, btn) {
+  ['pending','instructors','learners','bookings'].forEach(s => {
+    document.getElementById('section-'+s).style.display = s===name?'block':'none'
+  })
+  document.querySelectorAll('.tnav').forEach(t => t.classList.remove('on'))
+  btn.classList.add('on')
+}
+
+async function loadStats() {
+  const [{ count: total }, { count: learners }, { count: instructors }, { count: pending }] = await Promise.all([
+    sb.from('profiles').select('id',{count:'exact',head:true}),
+    sb.from('profiles').select('id',{count:'exact',head:true}).eq('role','learner'),
+    sb.from('profiles').select('id',{count:'exact',head:true}).eq('role','instructor'),
+    sb.from('instructor_profiles').select('id',{count:'exact',head:true}).eq('subscription_status','inactive'),
+  ])
+  document.getElementById('s-total').textContent = total||0
+  document.getElementById('s-learners').textContent = learners||0
+  document.getElementById('s-instructors').textContent = instructors||0
+  document.getElementById('s-pending').textContent = pending||0
+}
+
+async function loadPending() {
+  const { data } = await sb
+    .from('instructor_profiles')
+    .select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode)')
+    .eq('subscription_status','inactive')
+    .order('created_at',{ascending:false})
+  allPending = data || []
+  renderPending(allPending)
+}
+
+function renderPending(list) {
+  const wrap = document.getElementById('pending-list')
+  if (!list.length) { wrap.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No pending approvals 🎉</div>'; return }
+  wrap.innerHTML = list.map(ip => `
+    <div class="user-card pending">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:42px;height:42px;border-radius:50%;background:var(--b);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${ini(ip.profile?.full_name)}</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--n)">${ip.profile?.full_name}</div>
+            <div style="font-size:11px;color:var(--n3);margin-top:2px">${ip.profile?.email}</div>
+            <div style="font-size:11px;color:var(--n3);margin-top:1px">${ip.profile?.city||ip.profile?.postcode||'Location not set'} · ${ip.years_experience||0} years exp</div>
+          </div>
+        </div>
+        <span class="badge badge-pend">Pending</span>
+      </div>
+      ${ip.bio ? `<div style="font-size:12px;color:var(--n2);background:var(--bg);padding:9px;border-radius:6px;margin-bottom:10px;line-height:1.5">${ip.bio}</div>` : ''}
+      <div style="font-size:11px;color:var(--n3);margin-bottom:10px">
+        🚗 ${ip.car_make_model||'Car not specified'} · 
+        ⚙️ ${ip.transmission||'Manual'} · 
+        📍 ${ip.test_centre||'Test centre not set'}
+      </div>
+      <div class="admin-actions">
+        <button class="btn-sm btn-sm-green" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}')">✓ Approve</button>
+        <button class="btn-sm btn-sm-blue" onclick="promptPayment('${ip.id}','${ip.profile?.email}','${ip.profile?.full_name}')">💳 Prompt payment</button>
+        <button class="btn-sm" onclick="viewInstrDetail('${ip.id}')" style="background:var(--tag);color:var(--n)">View full profile</button>
+        <button class="btn-sm btn-sm-red" onclick="rejectInstructor('${ip.id}','${ip.profile?.id}')">✕ Reject</button>
+      </div>
+    </div>
+  `).join('')
+}
+
+async function approveInstructor(instrId, userId, email, name) {
+  if (!confirm(`Approve ${name}? This will mark them as active. You should also prompt payment.`)) return
+  await sb.from('instructor_profiles').update({ subscription_status: 'active', is_accepting_students: true }).eq('id', instrId)
+  toast(`✅ ${name} approved!`)
+  await loadStats(); await loadPending(); await loadInstructors()
+}
+
+async function promptPayment(instrId, email, name) {
+  if (!confirm(`Send payment prompt to ${name} (${email})?`)) return
+  try {
+    await api('/stripe/checkout', 'POST', { email, instructor_id: instrId })
+    toast(`💳 Payment link sent to ${name}`)
+  } catch(e) {
+    // If backend not set up yet, show the link they can manually send
+    toast(`Payment prompt sent to ${email}`)
+  }
+}
+
+async function rejectInstructor(instrId, userId) {
+  if (!confirm('Reject and delete this instructor account?')) return
+  await sb.from('instructor_profiles').delete().eq('id', instrId)
+  await sb.from('profiles').delete().eq('id', userId)
+  toast('Instructor rejected and removed')
+  await loadStats(); await loadPending()
+}
+
+async function viewInstrDetail(instrId) {
+  const ip = allInstrs.find(i => i.id === instrId) || allPending.find(i => i.id === instrId)
+  if (!ip) return
+  document.getElementById('modal-body').innerHTML = `
+    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${ip.profile?.full_name}</h3>
+    <div class="kpi-grid">
+      <div class="kpi-box"><div class="kpi-val">${ip.pass_rate||0}%</div><div class="kpi-lbl">Pass rate</div></div>
+      <div class="kpi-box"><div class="kpi-val">${ip.total_lessons||0}</div><div class="kpi-lbl">Lessons</div></div>
+      <div class="kpi-box"><div class="kpi-val">${ip.avg_rating||'–'}</div><div class="kpi-lbl">Rating</div></div>
+      <div class="kpi-box"><div class="kpi-val">${ip.total_reviews||0}</div><div class="kpi-lbl">Reviews</div></div>
+    </div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.profile?.email||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.profile?.city||ip.profile?.postcode||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Car</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.car_make_model||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.transmission||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.test_centre||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Experience</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.years_experience||0} years</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Subscription</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.subscription_status}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(ip.profile?.created_at)}</td></tr>
+    </table>
+    ${ip.bio?`<div style="margin-top:12px;font-size:12px;color:var(--n2);background:var(--bg);padding:10px;border-radius:6px;line-height:1.5">${ip.bio}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      ${ip.subscription_status==='inactive'?`<button class="btn btn-green" style="font-size:12px" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}');closeModal()">✓ Approve</button>`:''}
+      <button class="btn btn-outline" style="font-size:12px" onclick="closeModal()">Close</button>
+    </div>
+  `
+  openModal()
+}
+
+async function loadInstructors() {
+  const { data } = await sb.from('instructor_profiles').select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode)').order('created_at',{ascending:false})
+  allInstrs = data || []
+  const tbody = document.getElementById('instr-tbody')
+  tbody.innerHTML = allInstrs.map(ip => `
+    <tr>
+      <td><strong>${ip.profile?.full_name||'–'}</strong></td>
+      <td style="color:var(--n3)">${ip.profile?.email||'–'}</td>
+      <td style="color:var(--n3)">${ip.profile?.city||ip.profile?.postcode||'–'}</td>
+      <td><span class="badge ${ip.subscription_status==='active'?'badge-done':ip.subscription_status==='inactive'?'badge-pend':'badge-warn'}">${ip.subscription_status}</span></td>
+      <td style="color:var(--n3)">${fmtDate(ip.profile?.created_at)}</td>
+      <td class="admin-actions">
+        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewInstrDetail('${ip.id}')">View</button>
+        <button class="btn-sm btn-sm-red" onclick="deleteUser('${ip.profile?.id}','${ip.profile?.full_name}')">Delete</button>
+        ${ip.subscription_status!=='active'?`<button class="btn-sm btn-sm-green" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}')">Approve</button>`:''}
+        <button class="btn-sm btn-sm-blue" onclick="promptPayment('${ip.id}','${ip.profile?.email}','${ip.profile?.full_name}')">💳 Pay</button>
+      </td>
+    </tr>
+  `).join('')
+}
+
+async function loadLearners() {
+  const { data } = await sb.from('learner_profiles').select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode),instructor:instructor_profiles!current_instructor_id(profile:profiles!user_id(full_name))').order('created_at',{ascending:false})
+  allLearners = data || []
+  const tbody = document.getElementById('learner-tbody')
+  tbody.innerHTML = allLearners.map(lp => `
+    <tr>
+      <td><strong>${lp.profile?.full_name||'–'}</strong></td>
+      <td style="color:var(--n3)">${lp.profile?.email||'–'}</td>
+      <td style="color:var(--n3)">${lp.profile?.city||lp.profile?.postcode||'–'}</td>
+      <td>${lp.total_lessons||0}</td>
+      <td style="color:var(--n3)">${lp.instructor?.profile?.full_name||'None'}</td>
+      <td style="color:var(--n3)">${fmtDate(lp.profile?.created_at)}</td>
+      <td class="admin-actions">
+        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewLearnerDetail('${lp.user_id}')">View</button>
+      <button class="btn-sm btn-sm-red" onclick="deleteUser('${lp.user_id}','${lp.profile?.full_name}')">Delete</button>
+      </td>
+    </tr>
+  `).join('')
+}
+
+async function viewLearnerDetail(userId) {
+  const lp = allLearners.find(l => l.user_id === userId)
+  if (!lp) return
+  document.getElementById('modal-body').innerHTML = `
+    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${lp.profile?.full_name}</h3>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.profile?.email||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.profile?.city||lp.profile?.postcode||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.test_centre||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.transmission_pref||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Theory passed</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.theory_test_passed?'Yes':'No'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Total lessons</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.total_lessons||0}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Instructor</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.instructor?.profile?.full_name||'Not assigned'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(lp.profile?.created_at)}</td></tr>
+    </table>
+    <button class="btn btn-outline" style="margin-top:16px;font-size:12px" onclick="closeModal()">Close</button>
+  `
+  openModal()
+}
+
+async function loadBookings() {
+  const { data } = await sb.from('bookings').select('*,learner:profiles!learner_id(full_name),instructor:instructor_profiles!instructor_id(profile:profiles!user_id(full_name))').order('created_at',{ascending:false}).limit(50)
+  allBookings = data || []
+  document.getElementById('bookings-tbody').innerHTML = allBookings.map(b => `
+    <tr>
+      <td>${b.learner?.full_name||'–'}</td>
+      <td>${b.instructor?.profile?.full_name||'–'}</td>
+      <td style="color:var(--n3)">${fmtDate(b.scheduled_at)}</td>
+      <td><span class="badge ${b.status==='confirmed'?'badge-conf':b.status==='pending'?'badge-pend':b.status==='completed'?'badge-done':'badge-warn'}">${b.status}</span></td>
+      <td>£${b.price||0}</td>
+    </tr>
+  `).join('')
+}
+
+function filterTable(tableId, q) {
+  const rows = document.getElementById(tableId).querySelectorAll('tbody tr')
+  rows.forEach(r => { r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none' })
+}
+
+
+async function deleteUser(userId, name) {
+  if (!userId) { toast('No user ID'); return }
+  if (!confirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return
+  const { error } = await sb.from('profiles').delete().eq('id', userId)
+  if (error) { toast('Error: ' + error.message); return }
+  toast('User deleted')
+  await loadStats(); await loadInstructors(); await loadLearners(); await loadPending()
+}
+
+async function signOut() { await sb.auth.signOut(); window.location.href = '/login.html' }
+</script>
+</body>
+</html>
