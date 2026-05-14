@@ -299,6 +299,7 @@ let CU = null, CP = null, LP = null, isLoggedIn = false
       CU = user; CP = profile; isLoggedIn = true
       setupLearnerNav(profile)
       await loadLearnerData()
+      return
     }
   }
   setupPublicNav()
@@ -472,7 +473,9 @@ async function sendMsg(convId) {
   const d = document.createElement('div')
   d.innerHTML = '<div><div class="cmsg sent-g">' + txt + '</div><div class="cmsg-t" style="text-align:right">' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + '</div></div>'
   msgs.appendChild(d); msgs.scrollTop = 99999; inp.value = ''
+  const nowIso = now.toISOString()
   await sb.from('messages').insert({ conversation_id: convId, sender_id: CU.id, content: txt, type: 'text' })
+  await sb.from('conversations').update({ last_message: txt, last_message_at: nowIso }).eq('id', convId)
 }
 function closeChat() {
   document.getElementById('inbox-wrap').style.display = ''

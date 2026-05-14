@@ -29,6 +29,7 @@ let leafMap = null, mapReady = false, markers = [], selectedInstructor = null
 
   const realInstrs = (dbInstrs || []).map((ip, i) => ({
     id: ip.id, name: ip.profile?.full_name || 'Instructor',
+    profileUserId: ip.profile?.id,
     ini: ini(ip.profile?.full_name), col: COLOURS[i % COLOURS.length],
     lat: 53.4808 + (Math.random() - 0.5) * 0.12,
     lng: -2.2426 + (Math.random() - 0.5) * 0.18,
@@ -215,8 +216,34 @@ async function handleContact() {
   closeModal()
   const user = await getUser()
   if (!user) { openLearnerSignup('message'); return }
-  // If logged in learner, start conversation
-  if (typeof switchTab === 'function') { switchTab(1); toast('Opening messages…') }
+
+  const ins = selectedInstructor
+  if (!ins?.isReal || !ins?.profileUserId) {
+    toast('This is a demo instructor — sign up to message real instructors!')
+    return
+  }
+
+  // Find existing conversation or create one
+  let { data: existing } = await sb.from('conversations')
+    .select('id')
+    .eq('learner_id', user.id)
+    .eq('instructor_id', ins.profileUserId)
+    .maybeSingle()
+
+  let convId = existing?.id
+  if (!convId) {
+    const { data: newConv, error } = await sb.from('conversations')
+      .insert({ learner_id: user.id, instructor_id: ins.profileUserId })
+      .select('id').single()
+    if (error) { toast('Could not start conversation: ' + error.message); return }
+    convId = newConv.id
+  }
+
+  if (typeof switchTab === 'function') {
+    switchTab(1)
+    await loadMessages()
+    openChat(convId, ins.name)
+  }
 }
 
 // ── BOOKING REQUEST MODAL ────────────────────────────────────
