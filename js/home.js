@@ -238,38 +238,69 @@ async function handleContact() {
 function openBookingRequest() {
   const ins = selectedInstructor
   if (!ins) return
+
+  // Build a sensible default: next weekday at 10:00
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1)
+  if (d.getDay() === 6) d.setDate(d.getDate() + 2)
+  d.setHours(10, 0, 0, 0)
+  const minDt = new Date(); minDt.setDate(minDt.getDate() + 1); minDt.setHours(0,0,0,0)
+  const maxDt = new Date(); maxDt.setMonth(maxDt.getMonth() + 3)
+  const fmt = dt => dt.toISOString().slice(0,16)
+
+  const slotHtml = selectedSlotId
+    ? '<div style="background:var(--gl);border:1px solid rgba(29,191,115,.3);border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px;font-weight:600;color:#166534">📅 Selected slot: ' + selectedSlotLabel + '</div>'
+    : '<div class="form-group" style="margin-bottom:14px">'
+      + '<label style="font-size:11px;font-weight:700;color:var(--n3);text-transform:uppercase;letter-spacing:.5px">Preferred date &amp; time</label>'
+      + '<input type="datetime-local" id="req-datetime" min="' + fmt(minDt) + '" max="' + fmt(maxDt) + '" value="' + fmt(d) + '" style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:8px;font-size:14px;font-family:var(--F);background:var(--w);color:var(--n);box-sizing:border-box">'
+      + '<div style="font-size:11px;color:var(--n3);margin-top:5px">The instructor will confirm or suggest an alternative.</div>'
+      + '</div>'
+
   document.getElementById('learner-modal-body').innerHTML =
     '<h2 style="font-size:18px;font-weight:800;color:var(--n);margin-bottom:4px">Request a lesson</h2>'
-    + '<p style="font-size:13px;color:var(--n3);margin-bottom:16px">Send a request to <strong>' + ins.name + '</strong>. They\'ll confirm or suggest another time.</p>'
-    + (selectedSlotId ? '<div style="background:var(--gl);border:1px solid rgba(29,191,115,.3);border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px;font-weight:600;color:#166534">📅 Requested slot: ' + selectedSlotLabel + '</div>' : '<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:12px;color:#854d0e">No slot selected — your request will be sent without a specific time. The instructor will contact you to arrange.</div>')
-    + '<div class="form-group"><label>Short description</label><textarea id="req-note" placeholder="e.g. I\'m a complete beginner, I\'d like to start with the basics. I\'m available most weekday mornings." style="min-height:90px"></textarea></div>'
+    + '<p style="font-size:13px;color:var(--n3);margin-bottom:16px">Send a request to <strong>' + ins.name + '</strong>.</p>'
+    + slotHtml
+    + '<div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--n3);text-transform:uppercase;letter-spacing:.5px">Short description</label>'
+    + '<textarea id="req-note" placeholder="e.g. I\'m a complete beginner and available weekday mornings." style="min-height:80px;width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:8px;font-size:14px;font-family:var(--F);resize:vertical;box-sizing:border-box"></textarea></div>'
     + '<button class="btn btn-green" onclick="submitBookingRequest()">Send request →</button>'
   document.getElementById('learner-modal').classList.add('open')
 }
 
 async function submitBookingRequest() {
-  const note = document.getElementById('req-note').value.trim()
+  const note = document.getElementById('req-note')?.value.trim()
   if (!note) { toast('Please add a short description'); return }
   const user = await getUser()
   const ins = selectedInstructor
   if (!user || !ins) return
 
-  // Get instructor profile id if real, else skip
   let instrProfileId = ins.isReal ? ins.id : null
   if (!instrProfileId) { toast('This is a demo instructor — sign up to book real lessons!'); return }
+
+  let scheduledAt
+  if (selectedSlotId) {
+    const { data: slot } = await sb.from('availability_slots').select('start_time').eq('id', selectedSlotId).single()
+    scheduledAt = slot?.start_time
+  } else {
+    const dtEl = document.getElementById('req-datetime')
+    scheduledAt = dtEl?.value ? new Date(dtEl.value).toISOString() : new Date(Date.now() + 7*24*60*60*1000).toISOString()
+  }
+
+  const btn = document.querySelector('#learner-modal-body .btn-green')
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…' }
 
   const { error } = await sb.from('bookings').insert({
     learner_id: user.id,
     instructor_id: instrProfileId,
     slot_id: selectedSlotId || null,
-    scheduled_at: selectedSlotId ? (await sb.from('availability_slots').select('start_time').eq('id', selectedSlotId).single()).data?.start_time : new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+    scheduled_at: scheduledAt,
     duration_mins: 60,
     price: ins.price || 35,
     status: 'pending',
     request_note: note,
   })
 
-  if (error) { toast('Error: ' + error.message); return }
+  if (error) { toast('Error: ' + error.message); if (btn) { btn.disabled = false; btn.textContent = 'Send request →' }; return }
   if (selectedSlotId) await sb.from('availability_slots').update({ is_booked: true }).eq('id', selectedSlotId)
   closeLearnerModal()
   toast('✅ Request sent! ' + ins.name.split(' ')[0] + ' will confirm shortly.')
