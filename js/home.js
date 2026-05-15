@@ -1,17 +1,5 @@
 // js/home.js — homepage: map, instructor browse, signup flows
 
-const DUMMY = [
-  {id:'d1',name:'James Carter',ini:'JC',col:'#1A3C5E',lat:53.4808,lng:-2.2426,rating:4.9,reviews:127,passRate:95,lessons:380,price:38,transmission:'manual',experience:10,city:'City Centre',listings:['Standard Lessons','Pass+','Test Bundle','Motorway'],bio:'10 years experience, 95% pass rate. Calm and structured, specialising in nervous learners.',level:'Top Rated',gender:'Male',car:'Ford Focus (Manual)',centres:['Cheetham Hill (Manchester)','Manchester City (Wythenshawe)','Sale (Manchester)']},
-  {id:'d2',name:'Sarah Mills',ini:'SM',col:'#7B3F8B',lat:53.4112,lng:-2.2181,rating:4.7,reviews:84,passRate:88,lessons:220,price:42,transmission:'manual',experience:6,city:'Didsbury',listings:['Crash Course','Intensive','One-Off','Evenings'],bio:'Specialist in nervous learners. Fun, patient approach. Flexible evenings and weekends.',level:'Level 2',gender:'Female',car:'Vauxhall Astra (Manual)',centres:['Bredbury (Manchester)','Hyde (Manchester)']},
-  {id:'d3',name:'Raj Patel',ini:'RP',col:'#1A7C4F',lat:53.4879,lng:-2.2980,rating:4.8,reviews:203,passRate:91,lessons:610,price:35,transmission:'automatic',experience:15,city:'Salford',listings:['Standard Lessons','Automatic Only','Test Bundle'],bio:'Automatic specialist, 15 years experience. Very patient, great for mature learners.',level:'Top Rated',gender:'Male',car:'Honda Jazz (Automatic)',centres:['Bolton (Manchester)','Wigan (Manchester)']},
-  {id:'d4',name:'Priya Sharma',ini:'PS',col:'#BE185D',lat:53.4654,lng:-2.2693,rating:4.6,reviews:61,passRate:86,lessons:140,price:40,transmission:'manual',experience:4,city:'Wythenshawe',listings:['Standard Lessons','Crash Course','Nervous Learners'],bio:'Patient and encouraging. Perfect for first-time drivers who feel anxious behind the wheel.',level:'New',gender:'Female',car:'Nissan Micra (Manual)',centres:['Wythenshawe (Manchester)','Sale (Manchester)']},
-  {id:'d5',name:'Marcus Thompson',ini:'MT',col:'#92400E',lat:53.5005,lng:-2.1890,rating:4.8,reviews:98,passRate:90,lessons:290,price:37,transmission:'manual',experience:8,city:'Oldham',listings:['Standard Lessons','Test Bundle','Pass+'],bio:'8 years teaching. Structured lessons with clear progress tracking from day one.',level:'Level 2',gender:'Male',car:'Toyota Yaris (Manual)',centres:['Chadderton','Rochdale (Manchester)']},
-  {id:'d6',name:'Lisa Chen',ini:'LC',col:'#0F766E',lat:53.4384,lng:-2.1500,rating:4.9,reviews:156,passRate:94,lessons:440,price:41,transmission:'manual',experience:12,city:'Stockport',listings:['Standard Lessons','Intensive','Test Bundle','Evenings'],bio:'12 years, outstanding pass rate. Flexible scheduling including evenings and weekends.',level:'Top Rated',gender:'Female',car:'Ford Fiesta (Manual)',centres:['Bredbury (Manchester)','Hyde (Manchester)','Macclesfield']},
-  {id:'d7',name:'David Okafor',ini:'DO',col:'#1E40AF',lat:53.5146,lng:-2.1003,rating:4.5,reviews:42,passRate:84,lessons:110,price:36,transmission:'manual',experience:3,city:'Ashton-under-Lyne',listings:['Standard Lessons','One-Off','Crash Course'],bio:'Friendly and approachable. Great with young learners and those who have failed before.',level:'New',gender:'Male',car:'Peugeot 208 (Manual)',centres:['Hyde (Manchester)','Bredbury (Manchester)']},
-  {id:'d8',name:'Emma Walsh',ini:'EW',col:'#6D28D9',lat:53.4230,lng:-2.3100,rating:4.7,reviews:73,passRate:89,lessons:195,price:39,transmission:'automatic',experience:7,city:'Stretford',listings:['Standard Lessons','Automatic Only','Nervous Learners','Evenings'],bio:'Automatic specialist based in Stretford. Excellent with nervous drivers.',level:'Level 2',gender:'Female',car:'Toyota Corolla (Automatic)',centres:['Sale (Manchester)','Atherton (Manchester)']},
-  {id:'d9',name:'Kevin Murphy',ini:'KM',col:'#B45309',lat:53.5230,lng:-2.2960,rating:4.6,reviews:88,passRate:87,lessons:255,price:38,transmission:'manual',experience:9,city:'Swinton',listings:['Standard Lessons','Pass+','Test Bundle'],bio:'Covering Swinton, Salford and surrounding areas. Thorough, structured teaching method.',level:'Level 2',gender:'Male',car:'Renault Clio (Manual)',centres:['Bolton (Manchester)','Wigan (Manchester)','Atherton (Manchester)']},
-  {id:'d10',name:'Aisha Mohammed',ini:'AM',col:'#047857',lat:53.4740,lng:-2.2340,rating:4.8,reviews:112,passRate:92,lessons:330,price:40,transmission:'manual',experience:11,city:'Moss Side',listings:['Standard Lessons','Crash Course','Intensive','Test Bundle'],bio:'Central Manchester based. Multi-lingual (English, Urdu, Arabic). Intensive courses available.',level:'Top Rated',gender:'Female',car:'Volkswagen Polo (Manual)',centres:['Cheetham Hill (Manchester)','Sale (Manchester)']},
-]
 
 const COLOURS = ['#1A3C5E','#7B3F8B','#1A7C4F','#C0392B','#2B5EA7','#C0712B','#BE185D','#0F766E','#6D28D9','#047857']
 const FILTERS  = ['All','Top Rated','Cheapest','Female','Male','Automatic','Crash Course','Test Bundle','Evenings']
@@ -44,7 +32,7 @@ let leafMap = null, mapReady = false, markers = [], selectedInstructor = null
     centres: ip.test_centres || [], isReal: true,
   }))
 
-  allInstructors = realInstrs.length > 0 ? realInstrs : DUMMY
+  allInstructors = realInstrs
   renderGigs(allInstructors)
   requestLocation()
 })()
@@ -130,7 +118,7 @@ function doSearch() {
 
 function renderGigs(list) {
   const grid = document.getElementById('gig-grid'); if (!grid) return
-  if (!list.length) { grid.innerHTML = '<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--n3);font-size:13px">No instructors found.</div>'; return }
+  if (!list.length) { grid.innerHTML = '<div style="grid-column:1/-1;padding:40px 24px;text-align:center;color:var(--n3);font-size:13px;line-height:1.7">No instructors available yet.<br><span style="font-size:12px">Check back soon — we\'re growing our network in Manchester.</span></div>'; return }
   grid.innerHTML = list.map(ins => {
     const badge = ins.level==='Top Rated' ? '<div class="gig-badge badge-top">TOP</div>' : ins.level==='New' ? '<div class="gig-badge" style="background:var(--gl);color:#166534">NEW</div>' : ''
     return '<div class="gig-card" onclick="openInstrDetail(\'' + ins.id + '\')">'
