@@ -705,7 +705,11 @@ async function loadIBookings(status, btn) {
 async function approveBooking(bookingId, slotId) {
   const { data: bk } = await sb.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId).select('learner_id,scheduled_at').single()
   if (slotId) await sb.from('availability_slots').update({ is_booked: true }).eq('id', slotId)
-  if (bk?.learner_id) sb.from('notifications').insert({ user_id: bk.learner_id, type: 'booking_confirmed', title: (CP?.full_name?.split(' ')[0] || 'Your instructor') + ' confirmed your lesson', body: bk.scheduled_at ? 'Scheduled for ' + fmtDate(bk.scheduled_at) + ' at ' + fmtTime(bk.scheduled_at) : null, is_read: false })
+  if (bk?.learner_id) {
+    sb.from('notifications').insert({ user_id: bk.learner_id, type: 'booking_confirmed', title: (CP?.full_name?.split(' ')[0] || 'Your instructor') + ' confirmed your lesson', body: bk.scheduled_at ? 'Scheduled for ' + fmtDate(bk.scheduled_at) + ' at ' + fmtTime(bk.scheduled_at) : null, is_read: false })
+    // Add learner as a student of this instructor
+    if (IP?.id) await sb.from('learner_profiles').upsert({ user_id: bk.learner_id, current_instructor_id: IP.id }, { onConflict: 'user_id' })
+  }
   toast('✅ Booking confirmed'); loadIBookings('pending')
 }
 

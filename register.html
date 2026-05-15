@@ -20,15 +20,16 @@
       <div style="font-size:13px;color:var(--n3);margin-bottom:22px">Free to sign up. Find and book instructors near you.</div>
       <form id="reg-form">
         <div class="form-group"><label>Full name</label><input type="text" id="name" placeholder="Your full name" required></div>
+        <div class="form-group"><label>Phone number</label><input type="tel" id="phone" placeholder="+44 7700 000000" required></div>
         <div class="form-group"><label>Email</label><input type="email" id="email" placeholder="you@email.com" required></div>
         <div class="form-group"><label>Password</label><input type="password" id="password" placeholder="Min 8 characters" minlength="8" required></div>
         <div class="grid-2">
-          <div class="form-group"><label>Postcode</label><input type="text" id="postcode" placeholder="M1 1AA"></div>
-          <div class="form-group"><label>Test centre</label><select id="centre"><option>Manchester City</option><option>Didsbury</option><option>Trafford</option><option>Wythenshawe</option><option>Oldham</option><option>Stockport</option></select></div>
+          <div class="form-group"><label>Postcode</label><input type="text" id="postcode" placeholder="M1 1AA" required></div>
+          <div class="form-group"><label>Test centre</label><select id="centre" required><option value="">Select…</option><option>Manchester City</option><option>Didsbury</option><option>Trafford</option><option>Wythenshawe</option><option>Oldham</option><option>Stockport</option></select></div>
         </div>
         <div class="grid-2">
-          <div class="form-group"><label>Transmission</label><select id="trans"><option>Manual</option><option>Automatic</option><option>No preference</option></select></div>
-          <div class="form-group"><label>Gender pref.</label><select id="gend"><option>No preference</option><option>Male</option><option>Female</option></select></div>
+          <div class="form-group"><label>Transmission</label><select id="trans" required><option value="">Select…</option><option>Manual</option><option>Automatic</option><option>No preference</option></select></div>
+          <div class="form-group"><label>Gender pref.</label><select id="gend" required><option value="">Select…</option><option value="no_preference">No preference</option><option value="male">Male</option><option value="female">Female</option></select></div>
         </div>
         <button type="submit" class="btn btn-green" id="submit-btn">Create free account →</button>
       </form>
@@ -51,11 +52,12 @@
     e.preventDefault()
     const btn = document.getElementById('submit-btn'); btn.disabled = true; btn.textContent = 'Creating account…'
     const name = document.getElementById('name').value.trim()
-    const { data, error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: name, role: 'learner', postcode: document.getElementById('postcode').value.trim(), test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
+    const phone = document.getElementById('phone').value.trim()
+    const postcode = document.getElementById('postcode').value.trim()
+    const { data, error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: name, role: 'learner', phone, postcode, test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
     if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
-    // Ensure profiles row exists — trigger handles it but insert defensively too
     if (data?.user) {
-      await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: name, onboarding_done: true }, { onConflict: 'id' })
+      await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: name, phone, postcode, onboarding_done: true }, { onConflict: 'id' })
     }
     toast('✅ Account created!'); setTimeout(() => window.location.href = '/index.html', 1200)
   })

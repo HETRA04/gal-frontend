@@ -19,8 +19,8 @@ let leafMap = null, mapReady = false, markers = [], selectedInstructor = null
     id: ip.id, name: ip.profile?.full_name || 'Instructor',
     profileUserId: ip.profile?.id,
     ini: ini(ip.profile?.full_name), col: COLOURS[i % COLOURS.length],
-    lat: 53.4808 + (Math.random() - 0.5) * 0.12,
-    lng: -2.2426 + (Math.random() - 0.5) * 0.18,
+    lat: 53.4808, lng: -2.2426,
+    postcode: ip.profile?.postcode || '',
     rating: ip.avg_rating || 4.5, reviews: ip.total_reviews || 0,
     passRate: ip.pass_rate || 0, lessons: ip.total_lessons || 0,
     price: ip.hourly_rate || 35, transmission: ip.transmission || 'manual',
@@ -31,6 +31,24 @@ let leafMap = null, mapReady = false, markers = [], selectedInstructor = null
     gender: null, car: ip.car_make_model || '',
     centres: ip.test_centres || [], isReal: true,
   }))
+
+  // Geocode instructor postcodes via postcodes.io (free, no key)
+  const toGeocode = realInstrs.filter(i => i.postcode).map(i => i.postcode)
+  if (toGeocode.length) {
+    try {
+      const geoRes = await fetch('https://api.postcodes.io/postcodes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postcodes: toGeocode }) })
+      const geoData = await geoRes.json()
+      if (geoData.status === 200) {
+        const geoMap = {}
+        geoData.result.forEach(r => { if (r.result) geoMap[r.query.toUpperCase()] = { lat: r.result.latitude, lng: r.result.longitude } })
+        realInstrs.forEach(ins => {
+          const g = geoMap[ins.postcode.toUpperCase().replace(/\s/g,'')]
+            || geoMap[ins.postcode.toUpperCase()]
+          if (g) { ins.lat = g.lat; ins.lng = g.lng }
+        })
+      }
+    } catch(e) { /* geocoding failed — markers stay at Manchester centre */ }
+  }
 
   allInstructors = realInstrs
   renderGigs(allInstructors)
@@ -318,12 +336,13 @@ function openLearnerSignup(action) {
     + '<p style="font-size:13px;color:var(--n3);margin-bottom:20px">Create a free learner account to continue.</p>'
     + '<form id="lr-form">'
     + '<div class="form-group"><label>Full name</label><input type="text" id="lr-name" placeholder="Your full name" required></div>'
+    + '<div class="form-group"><label>Phone number</label><input type="tel" id="lr-phone" placeholder="+44 7700 000000" required></div>'
     + '<div class="form-group"><label>Email</label><input type="email" id="lr-email" placeholder="you@email.com" required></div>'
     + '<div class="form-group"><label>Password</label><input type="password" id="lr-pw" placeholder="Min 8 characters" minlength="8" required></div>'
-    + '<div class="grid-2"><div class="form-group"><label>Postcode</label><input type="text" id="lr-post" placeholder="M1 1AA"></div>'
-    + '<div class="form-group"><label>Test centre</label><select id="lr-centre"></select></div></div>'
-    + '<div class="grid-2"><div class="form-group"><label>Transmission</label><select id="lr-trans"><option>Manual</option><option>Automatic</option></select></div>'
-    + '<div class="form-group"><label>Gender pref.</label><select id="lr-gend"><option value="no_preference">No preference</option><option value="male">Male</option><option value="female">Female</option></select></div></div>'
+    + '<div class="grid-2"><div class="form-group"><label>Postcode</label><input type="text" id="lr-post" placeholder="M1 1AA" required></div>'
+    + '<div class="form-group"><label>Test centre</label><select id="lr-centre" required></select></div></div>'
+    + '<div class="grid-2"><div class="form-group"><label>Transmission</label><select id="lr-trans" required><option value="">Select…</option><option>Manual</option><option>Automatic</option></select></div>'
+    + '<div class="form-group"><label>Gender pref.</label><select id="lr-gend" required><option value="">Select…</option><option value="no_preference">No preference</option><option value="male">Male</option><option value="female">Female</option></select></div></div>'
     + '<button type="submit" class="btn btn-green" id="lr-submit">Create account &amp; continue →</button>'
     + '<div class="or-div"><span>or</span></div>'
     + '<button type="button" class="btn btn-outline" onclick="window.location.href=\'/login.html\'">I already have an account</button>'
@@ -334,8 +353,12 @@ function openLearnerSignup(action) {
   document.getElementById('lr-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = document.getElementById('lr-submit'); btn.disabled = true; btn.textContent = 'Creating account…'
-    const { error } = await sb.auth.signUp({ email: document.getElementById('lr-email').value.trim(), password: document.getElementById('lr-pw').value, options: { data: { full_name: document.getElementById('lr-name').value.trim(), role: 'learner', postcode: document.getElementById('lr-post').value.trim(), test_centre: document.getElementById('lr-centre').value, transmission: document.getElementById('lr-trans').value, gender_pref: document.getElementById('lr-gend').value } } })
+    const lrName = document.getElementById('lr-name').value.trim()
+    const lrPhone = document.getElementById('lr-phone').value.trim()
+    const lrPost = document.getElementById('lr-post').value.trim()
+    const { data, error } = await sb.auth.signUp({ email: document.getElementById('lr-email').value.trim(), password: document.getElementById('lr-pw').value, options: { data: { full_name: lrName, role: 'learner', phone: lrPhone, postcode: lrPost, test_centre: document.getElementById('lr-centre').value, transmission: document.getElementById('lr-trans').value, gender_pref: document.getElementById('lr-gend').value } } })
     if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+    if (data?.user) await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: lrName, phone: lrPhone, postcode: lrPost, onboarding_done: true }, { onConflict: 'id' })
     toast('✅ Account created!'); setTimeout(() => window.location.reload(), 1200)
   })
 }
@@ -350,13 +373,14 @@ function openInstrSignup() {
     + '<div style="background:var(--bl);border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:16px;font-size:12px;color:var(--bd);line-height:1.5">ℹ️ <strong>No payment needed yet.</strong> Once approved you\'ll receive an email with a payment link to activate your £40/mo subscription.</div>'
     + '<form id="ir-form">'
     + '<div class="form-group blue"><label>Full name</label><input type="text" id="ir-name" placeholder="Your full name" required></div>'
+    + '<div class="form-group blue"><label>Phone number</label><input type="tel" id="ir-phone" placeholder="+44 7700 000000" required></div>'
     + '<div class="form-group blue"><label>Email</label><input type="email" id="ir-email" placeholder="you@email.com" required></div>'
     + '<div class="form-group blue"><label>Password</label><input type="password" id="ir-pw" placeholder="Min 8 characters" minlength="8" required></div>'
-    + '<div class="grid-2"><div class="form-group blue"><label>Car</label><input type="text" id="ir-car" placeholder="e.g. Ford Focus"></div>'
-    + '<div class="form-group blue"><label>Transmission</label><select id="ir-trans"><option>Manual</option><option>Automatic</option></select></div></div>'
-    + '<div class="grid-2"><div class="form-group blue"><label>Postcode</label><input type="text" id="ir-post" placeholder="M1 1AA"></div>'
-    + '<div class="form-group blue"><label>Years experience</label><input type="number" id="ir-exp" placeholder="e.g. 5" min="0"></div></div>'
-    + '<div class="form-group blue"><label>Bio</label><textarea id="ir-bio" placeholder="Describe your teaching style and experience…"></textarea></div>'
+    + '<div class="grid-2"><div class="form-group blue"><label>Car</label><input type="text" id="ir-car" placeholder="e.g. Ford Focus" required></div>'
+    + '<div class="form-group blue"><label>Transmission</label><select id="ir-trans" required><option value="">Select…</option><option>Manual</option><option>Automatic</option></select></div></div>'
+    + '<div class="grid-2"><div class="form-group blue"><label>Postcode</label><input type="text" id="ir-post" placeholder="M1 1AA" required></div>'
+    + '<div class="form-group blue"><label>Years experience</label><input type="number" id="ir-exp" placeholder="e.g. 5" min="0" required></div></div>'
+    + '<div class="form-group blue"><label>Bio</label><textarea id="ir-bio" placeholder="Describe your teaching style and experience…" required></textarea></div>'
     + '<div class="form-group blue"><label>Test centres you cover <span style="font-size:10px;color:var(--n3);text-transform:none;font-weight:400">(search and select)</span></label>'
     + '<input type="text" id="ir-centre-search" placeholder="Type to search…" oninput="filterCentres(this.value)" style="margin-bottom:8px">'
     + '<div id="ir-centres" style="max-height:160px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;padding:8px;border:1.5px solid var(--bdr);border-radius:8px;background:var(--bg)"></div></div>'
@@ -372,8 +396,19 @@ function openInstrSignup() {
     const btn = document.getElementById('ir-submit'); btn.disabled = true; btn.textContent = 'Submitting…'
     const listings = [...document.querySelectorAll('#ir-chips .chip.on')].map(c => c.textContent)
     const centres = getSelectedCentres('ir-centres')
-    const { error } = await sb.auth.signUp({ email: document.getElementById('ir-email').value.trim(), password: document.getElementById('ir-pw').value, options: { data: { full_name: document.getElementById('ir-name').value.trim(), role: 'instructor', car: document.getElementById('ir-car').value.trim(), car_trans: document.getElementById('ir-trans').value, postcode: document.getElementById('ir-post').value.trim(), experience: document.getElementById('ir-exp').value, bio: document.getElementById('ir-bio').value.trim(), listings, test_centres: centres, pending_approval: true } } })
+    const irName = document.getElementById('ir-name').value.trim()
+    const irPhone = document.getElementById('ir-phone').value.trim()
+    const irPost = document.getElementById('ir-post').value.trim()
+    const irCar = document.getElementById('ir-car').value.trim()
+    const irTrans = document.getElementById('ir-trans').value
+    const irExp = document.getElementById('ir-exp').value
+    const irBio = document.getElementById('ir-bio').value.trim()
+    const { data, error } = await sb.auth.signUp({ email: document.getElementById('ir-email').value.trim(), password: document.getElementById('ir-pw').value, options: { data: { full_name: irName, role: 'instructor', phone: irPhone, postcode: irPost, car: irCar, car_trans: irTrans, experience: irExp, bio: irBio, listings, test_centres: centres, pending_approval: true } } })
     if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    if (data?.user) {
+      await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'instructor', full_name: irName, phone: irPhone, postcode: irPost, onboarding_done: true }, { onConflict: 'id' })
+      await sb.from('instructor_profiles').upsert({ user_id: data.user.id, car_make_model: irCar, transmission: irTrans, years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false }, { onConflict: 'user_id' })
+    }
     document.getElementById('instr-modal-body').innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:44px;margin-bottom:14px">🎉</div><h3 style="font-size:18px;font-weight:800;color:var(--n);margin-bottom:8px">Application submitted!</h3><p style="font-size:13px;color:var(--n3);line-height:1.6;max-width:280px;margin:0 auto 20px">We\'ll review your profile within 24 hours. Once approved you\'ll receive an email with your payment link.</p><button class="btn btn-blue" style="width:auto;padding:10px 24px" onclick="closeInstrModal()">Got it</button></div>'
   })
 }
