@@ -403,13 +403,19 @@ function openInstrSignup() {
     const irTrans = document.getElementById('ir-trans').value
     const irExp = document.getElementById('ir-exp').value
     const irBio = document.getElementById('ir-bio').value.trim()
-    const { data, error } = await sb.auth.signUp({ email: document.getElementById('ir-email').value.trim(), password: document.getElementById('ir-pw').value, options: { data: { full_name: irName, role: 'instructor', phone: irPhone, postcode: irPost, car: irCar, car_trans: irTrans, experience: irExp, bio: irBio, listings, test_centres: centres, pending_approval: true } } })
-    if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
-    if (data?.user) {
-      const { error: pe } = await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'instructor', full_name: irName, phone: irPhone, postcode: irPost, onboarding_done: true }, { onConflict: 'id' })
-      if (pe) { toast('❌ Profile error: ' + pe.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
-      const { error: ie } = await sb.from('instructor_profiles').insert({ user_id: data.user.id, car_make_model: irCar, transmission: irTrans, years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false })
-      if (ie) { toast('❌ Instructor profile error: ' + ie.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    let signUpData, signUpError
+    try {
+      const res = await sb.auth.signUp({ email: document.getElementById('ir-email').value.trim(), password: document.getElementById('ir-pw').value, options: { data: { full_name: irName, role: 'instructor', phone: irPhone, postcode: irPost, car: irCar, car_trans: irTrans, experience: irExp, bio: irBio, listings, test_centres: centres, pending_approval: true } } })
+      signUpData = res.data; signUpError = res.error
+    } catch(e) { toast('❌ Signup failed: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    if (signUpError) { toast('❌ ' + signUpError.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    if (signUpData?.user) {
+      try {
+        const { error: pe } = await sb.from('profiles').upsert({ id: signUpData.user.id, email: signUpData.user.email, role: 'instructor', full_name: irName, phone: irPhone, postcode: irPost, onboarding_done: true }, { onConflict: 'id' })
+        if (pe) { toast('❌ Profile error: ' + pe.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+        const { error: ie } = await sb.from('instructor_profiles').insert({ user_id: signUpData.user.id, car_make_model: irCar, transmission: irTrans, years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false })
+        if (ie) { toast('❌ Instructor profile error: ' + ie.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+      } catch(e) { toast('❌ DB error: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
     }
     document.getElementById('instr-modal-body').innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:44px;margin-bottom:14px">🎉</div><h3 style="font-size:18px;font-weight:800;color:var(--n);margin-bottom:8px">Application submitted!</h3><p style="font-size:13px;color:var(--n3);line-height:1.6;max-width:280px;margin:0 auto 20px">We\'ll review your profile within 24 hours. Once approved you\'ll receive an email with your payment link.</p><button class="btn btn-blue" style="width:auto;padding:10px 24px" onclick="closeInstrModal()">Got it</button></div>'
   })
