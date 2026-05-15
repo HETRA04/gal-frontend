@@ -263,13 +263,33 @@ a{text-decoration:none}
 .cal-vbtn:first-child{border-radius:5px 0 0 5px}
 .cal-vbtn:last-child{border-radius:0 5px 5px 0}
 
-/* FULLCALENDAR OVERRIDES */
+/* FULLCALENDAR OVERRIDES — Outlook-style */
 .fc{font-family:var(--F)!important;font-size:12px}
 .fc .fc-toolbar{display:none}
-.fc .fc-col-header-cell{background:var(--bg);font-size:11px;font-weight:700;color:var(--n3);padding:6px 4px}
-.fc .fc-timegrid-slot{height:2.2em}
-.fc .fc-event{border-radius:4px!important;font-size:11px!important;font-weight:600!important;border:none!important;padding:2px 5px!important}
-.fc .fc-highlight{background:rgba(37,99,235,.12)!important}
-.fc .fc-day-today{background:var(--bl)!important}
-.fc .fc-timegrid-now-indicator-line{border-color:var(--red)!important}
+/* Column headers: day name + date number */
+.fc .fc-col-header-cell{background:var(--w);border-bottom:2px solid var(--bdr)!important;padding:8px 2px;text-align:center}
+.fc .fc-col-header-cell-cushion{display:flex;flex-direction:column;align-items:center;text-decoration:none;padding:0;gap:2px}
+/* Time axis */
+.fc .fc-timegrid-axis{width:52px;background:var(--w)}
+.fc .fc-timegrid-slot-label{vertical-align:top;padding-top:4px}
+.fc .fc-timegrid-slot-label-cushion{font-size:10px;font-weight:600;color:var(--n3);padding:0 6px 0 4px;white-space:nowrap}
+/* Time slot rows */
+.fc .fc-timegrid-slot{height:28px}
+.fc .fc-timegrid-slot-minor{border-top-style:dashed;border-top-color:var(--bdr)}
+/* Event blocks */
+.fc .fc-event{border-radius:4px!important;font-size:11px!important;font-weight:600!important;border:none!important;padding:2px 5px!important;box-shadow:0 1px 3px rgba(0,0,0,.15)!important}
+/* Drag selection highlight */
+.fc .fc-highlight{background:rgba(37,99,235,.15)!important;border:1.5px dashed var(--b)!important;border-radius:4px!important}
+/* Today column */
+.fc .fc-day-today{background:rgba(37,99,235,.04)!important}
+/* Current time indicator */
+.fc .fc-timegrid-now-indicator-line{border-color:var(--red)!important;border-width:2px!important}
+.fc .fc-timegrid-now-indicator-arrow{border-top-color:var(--red)!important;border-bottom-color:var(--red)!important}
+/* Column borders */
+.fc .fc-timegrid-col{border-left:1px solid var(--bdr)!important}
+.fc .fc-scrollgrid{border:none!important}
+.fc .fc-scrollgrid td,.fc .fc-scrollgrid th{border-color:var(--bdr)!important}
+/* Day view / month view */
 .fc-daygrid-event{font-size:10px!important}
+/* Scroll container fills parent */
+.fc .fc-timegrid-body{width:100%!important}

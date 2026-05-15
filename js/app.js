@@ -10,8 +10,8 @@ const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON)
 
 async function getUser() {
   try {
-    const { data: { user } } = await sb.auth.getUser()
-    return user
+    const { data: { session } } = await sb.auth.getSession()
+    return session?.user || null
   } catch(e) { return null }
 }
 
@@ -34,8 +34,10 @@ function goHome(role, email) {
 
 async function requireRole(expectedRole) {
   showLoader()
-  const user = await getUser()
-  if (!user) { window.location.href = '/login.html'; return null }
+  // getSession reads from localStorage — no network round-trip
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session?.user) { window.location.href = '/login.html'; return null }
+  const user = session.user
   const profile = await getProfile(user.id)
   if (!profile) { window.location.href = '/login.html'; return null }
   if (profile.role !== expectedRole) { goHome(profile.role, user.email); return null }

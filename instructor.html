@@ -129,7 +129,7 @@
     <div style="background:var(--gl);border-bottom:1px solid rgba(29,191,115,.2);padding:7px 14px;font-size:11px;color:#166534;font-weight:600;flex-shrink:0">
       Drag to select a time block → mark as <strong>Available</strong> or <strong>Busy</strong>. Click an event to delete it.
     </div>
-    <div id="cal-container" style="flex:1;overflow:auto;padding-bottom:68px"></div>
+    <div id="cal-container" style="height:calc(100vh - 220px);overflow:hidden"></div>
   </div>
 
   <!-- SLOT CREATOR MODAL -->
@@ -489,18 +489,20 @@ function switchTab(i) {
   if (i === 1 && !_tabLoaded[1]) { _tabLoaded[1] = true; loadIBookings('confirmed') }
   if (i === 2 && !_tabLoaded[2]) { _tabLoaded[2] = true; loadStudents() }
   if (i === 3 && !_tabLoaded[3]) { _tabLoaded[3] = true; loadMessages() }
-  if (i === 5) setTimeout(initCalendar, 60)
+  if (i === 5) setTimeout(initCalendar, 120)
 }
 
 // ── CALENDAR ──────────────────────────────────────────────────
 let _cal = null, _calPending = null
 
 function initCalendar() {
-  if (_cal || !IP) return
+  if (!IP) return
   const el = document.getElementById('cal-container'); if (!el) return
+  if (_cal) { _cal.updateSize(); return }
   _cal = new FullCalendar.Calendar(el, {
     initialView: 'timeGridWeek',
     headerToolbar: false,
+    firstDay: 1,
     slotMinTime: '06:00:00',
     slotMaxTime: '22:00:00',
     height: '100%',
@@ -509,8 +511,20 @@ function initCalendar() {
     nowIndicator: true,
     allDaySlot: false,
     slotDuration: '00:30:00',
-    expandRows: true,
-    dayHeaderFormat: { weekday: 'short', day: 'numeric', month: 'short' },
+    slotLabelInterval: '01:00:00',
+    slotLabelFormat: { hour: 'numeric', minute: '2-digit', hour12: true },
+    scrollTime: new Date().getHours() + ':00:00',
+    expandRows: false,
+    dayHeaderContent: args => {
+      const day = args.date.toLocaleDateString('en-GB', { weekday: 'short' })
+      const num = args.date.getDate()
+      const today = new Date()
+      const isToday = args.date.toDateString() === today.toDateString()
+      return { html:
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:' + (isToday ? 'var(--b)' : 'var(--n3)') + '">' + day + '</div>'
+        + '<div style="font-size:' + (isToday ? '20px' : '18px') + ';font-weight:800;line-height:1.2;margin-top:2px;width:' + (isToday ? '32px' : 'auto') + ';height:' + (isToday ? '32px' : 'auto') + ';border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:' + (isToday ? 'var(--b)' : 'transparent') + ';color:' + (isToday ? '#fff' : 'var(--n)') + '">' + num + '</div>'
+      }
+    },
     datesSet: info => {
       const s = new Date(info.start), e = new Date(info.end.getTime() - 86400000)
       document.getElementById('cal-title').textContent =
