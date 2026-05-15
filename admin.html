@@ -136,63 +136,77 @@ function showSection(name, btn) {
 }
 
 async function loadStats() {
-  const [{ count: total }, { count: learners }, { count: instructors }, { count: pending }] = await Promise.all([
+  const [{ count: total }, { count: learners }, { count: instructors }, { count: active }] = await Promise.all([
     sb.from('profiles').select('id',{count:'exact',head:true}),
     sb.from('profiles').select('id',{count:'exact',head:true}).eq('role','learner'),
     sb.from('profiles').select('id',{count:'exact',head:true}).eq('role','instructor'),
-    sb.from('instructor_profiles').select('id',{count:'exact',head:true}).eq('subscription_status','inactive'),
+    sb.from('instructor_profiles').select('id',{count:'exact',head:true}).eq('subscription_status','active'),
   ])
   document.getElementById('s-total').textContent = total||0
   document.getElementById('s-learners').textContent = learners||0
   document.getElementById('s-instructors').textContent = instructors||0
-  document.getElementById('s-pending').textContent = pending||0
+  document.getElementById('s-pending').textContent = (instructors||0) - (active||0)
+}
+
+function normalizeInstructor(p) {
+  const ipArr = Array.isArray(p.instructor_profiles) ? p.instructor_profiles : [p.instructor_profiles].filter(Boolean)
+  const ip = ipArr[0] || {}
+  return {
+    instrProfileId: ip.id || null,
+    profileId: p.id,
+    full_name: p.full_name || '–',
+    email: p.email || '–',
+    created_at: p.created_at,
+    city: p.city, postcode: p.postcode,
+    subscription_status: ip.subscription_status || 'none',
+    car_make_model: ip.car_make_model, transmission: ip.transmission,
+    test_centre: ip.test_centre, years_experience: ip.years_experience,
+    bio: ip.bio, pass_rate: ip.pass_rate, total_lessons: ip.total_lessons,
+    avg_rating: ip.avg_rating, total_reviews: ip.total_reviews,
+  }
 }
 
 async function loadPending() {
-  const { data } = await sb
-    .from('instructor_profiles')
-    .select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode)')
-    .eq('subscription_status','inactive')
-    .order('created_at',{ascending:false})
-  allPending = data || []
+  const { data } = await sb.from('profiles')
+    .select('id,full_name,email,created_at,city,postcode,instructor_profiles(id,subscription_status,car_make_model,transmission,test_centre,years_experience,bio)')
+    .eq('role','instructor').order('created_at',{ascending:false})
+  allPending = (data||[]).map(normalizeInstructor).filter(i => i.subscription_status !== 'active')
   renderPending(allPending)
 }
 
 function renderPending(list) {
   const wrap = document.getElementById('pending-list')
   if (!list.length) { wrap.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No pending approvals 🎉</div>'; return }
-  wrap.innerHTML = list.map(ip => `
-    <div class="user-card pending">
+  wrap.innerHTML = list.map(i => `
+    <div class="user-card ${i.subscription_status==='none'?'inactive':'pending'}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
         <div style="display:flex;gap:10px;align-items:center">
-          <div style="width:42px;height:42px;border-radius:50%;background:var(--b);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${ini(ip.profile?.full_name)}</div>
+          <div style="width:42px;height:42px;border-radius:50%;background:var(--b);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${ini(i.full_name)}</div>
           <div>
-            <div style="font-size:14px;font-weight:700;color:var(--n)">${ip.profile?.full_name}</div>
-            <div style="font-size:11px;color:var(--n3);margin-top:2px">${ip.profile?.email}</div>
-            <div style="font-size:11px;color:var(--n3);margin-top:1px">${ip.profile?.city||ip.profile?.postcode||'Location not set'} · ${ip.years_experience||0} years exp</div>
+            <div style="font-size:14px;font-weight:700;color:var(--n)">${i.full_name}</div>
+            <div style="font-size:11px;color:var(--n3);margin-top:2px">${i.email}</div>
+            <div style="font-size:11px;color:var(--n3);margin-top:1px">${i.city||i.postcode||'Location not set'} · ${i.years_experience||0} years exp</div>
           </div>
         </div>
-        <span class="badge badge-pend">Pending</span>
+        <span class="badge badge-pend">${i.subscription_status==='none'?'No profile yet':'Pending'}</span>
       </div>
-      ${ip.bio ? `<div style="font-size:12px;color:var(--n2);background:var(--bg);padding:9px;border-radius:6px;margin-bottom:10px;line-height:1.5">${ip.bio}</div>` : ''}
+      ${i.bio?`<div style="font-size:12px;color:var(--n2);background:var(--bg);padding:9px;border-radius:6px;margin-bottom:10px;line-height:1.5">${i.bio}</div>`:''}
       <div style="font-size:11px;color:var(--n3);margin-bottom:10px">
-        🚗 ${ip.car_make_model||'Car not specified'} · 
-        ⚙️ ${ip.transmission||'Manual'} · 
-        📍 ${ip.test_centre||'Test centre not set'}
+        🚗 ${i.car_make_model||'Car not specified'} · ⚙️ ${i.transmission||'–'} · 📍 ${i.test_centre||'Test centre not set'}
       </div>
       <div class="admin-actions">
-        <button class="btn-sm btn-sm-green" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}')">✓ Approve</button>
-        <button class="btn-sm btn-sm-blue" onclick="promptPayment('${ip.id}','${ip.profile?.email}','${ip.profile?.full_name}')">💳 Prompt payment</button>
-        <button class="btn-sm" onclick="viewInstrDetail('${ip.id}')" style="background:var(--tag);color:var(--n)">View full profile</button>
-        <button class="btn-sm btn-sm-red" onclick="rejectInstructor('${ip.id}','${ip.profile?.id}')">✕ Reject</button>
+        ${i.instrProfileId?`<button class="btn-sm btn-sm-green" onclick="approveInstructor('${i.instrProfileId}','${i.profileId}','${i.email}','${i.full_name}')">✓ Approve</button>`:''}
+        ${i.instrProfileId?`<button class="btn-sm btn-sm-blue" onclick="promptPayment('${i.instrProfileId}','${i.email}','${i.full_name}')">💳 Prompt payment</button>`:''}
+        <button class="btn-sm" onclick="viewInstrDetail('${i.profileId}')" style="background:var(--tag);color:var(--n)">View full profile</button>
+        <button class="btn-sm btn-sm-red" onclick="rejectInstructor('${i.instrProfileId||''}','${i.profileId}')">✕ Reject</button>
       </div>
     </div>
   `).join('')
 }
 
-async function approveInstructor(instrId, userId, email, name) {
-  if (!confirm(`Approve ${name}? This will mark them as active. You should also prompt payment.`)) return
-  await sb.from('instructor_profiles').update({ subscription_status: 'active', is_accepting_students: true }).eq('id', instrId)
+async function approveInstructor(instrProfileId, profileId, email, name) {
+  if (!confirm(`Approve ${name}? This will mark them as active.`)) return
+  if (instrProfileId) await sb.from('instructor_profiles').update({ subscription_status: 'active', is_accepting_students: true }).eq('id', instrProfileId)
   toast(`✅ ${name} approved!`)
   await loadStats(); await loadPending(); await loadInstructors()
 }
@@ -208,38 +222,38 @@ async function promptPayment(instrId, email, name) {
   }
 }
 
-async function rejectInstructor(instrId, userId) {
+async function rejectInstructor(instrProfileId, profileId) {
   if (!confirm('Reject and delete this instructor account?')) return
-  await sb.from('instructor_profiles').delete().eq('id', instrId)
-  await sb.from('profiles').delete().eq('id', userId)
+  if (instrProfileId) await sb.from('instructor_profiles').delete().eq('id', instrProfileId)
+  await sb.from('profiles').delete().eq('id', profileId)
   toast('Instructor rejected and removed')
   await loadStats(); await loadPending()
 }
 
-async function viewInstrDetail(instrId) {
-  const ip = allInstrs.find(i => i.id === instrId) || allPending.find(i => i.id === instrId)
-  if (!ip) return
+async function viewInstrDetail(profileId) {
+  const i = allInstrs.find(x => x.profileId === profileId) || allPending.find(x => x.profileId === profileId)
+  if (!i) return
   document.getElementById('modal-body').innerHTML = `
-    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${ip.profile?.full_name}</h3>
+    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${i.full_name}</h3>
     <div class="kpi-grid">
-      <div class="kpi-box"><div class="kpi-val">${ip.pass_rate||0}%</div><div class="kpi-lbl">Pass rate</div></div>
-      <div class="kpi-box"><div class="kpi-val">${ip.total_lessons||0}</div><div class="kpi-lbl">Lessons</div></div>
-      <div class="kpi-box"><div class="kpi-val">${ip.avg_rating||'–'}</div><div class="kpi-lbl">Rating</div></div>
-      <div class="kpi-box"><div class="kpi-val">${ip.total_reviews||0}</div><div class="kpi-lbl">Reviews</div></div>
+      <div class="kpi-box"><div class="kpi-val">${i.pass_rate||0}%</div><div class="kpi-lbl">Pass rate</div></div>
+      <div class="kpi-box"><div class="kpi-val">${i.total_lessons||0}</div><div class="kpi-lbl">Lessons</div></div>
+      <div class="kpi-box"><div class="kpi-val">${i.avg_rating||'–'}</div><div class="kpi-lbl">Rating</div></div>
+      <div class="kpi-box"><div class="kpi-val">${i.total_reviews||0}</div><div class="kpi-lbl">Reviews</div></div>
     </div>
     <table style="width:100%;font-size:12px;border-collapse:collapse">
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.profile?.email||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.profile?.city||ip.profile?.postcode||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Car</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.car_make_model||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.transmission||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.test_centre||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Experience</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.years_experience||0} years</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Subscription</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${ip.subscription_status}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(ip.profile?.created_at)}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.email}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.city||i.postcode||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Car</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.car_make_model||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.transmission||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.test_centre||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Experience</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.years_experience||0} years</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Subscription</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${i.subscription_status}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(i.created_at)}</td></tr>
     </table>
-    ${ip.bio?`<div style="margin-top:12px;font-size:12px;color:var(--n2);background:var(--bg);padding:10px;border-radius:6px;line-height:1.5">${ip.bio}</div>`:''}
+    ${i.bio?`<div style="margin-top:12px;font-size:12px;color:var(--n2);background:var(--bg);padding:10px;border-radius:6px;line-height:1.5">${i.bio}</div>`:''}
     <div style="display:flex;gap:8px;margin-top:16px">
-      ${ip.subscription_status==='inactive'?`<button class="btn btn-green" style="font-size:12px" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}');closeModal()">✓ Approve</button>`:''}
+      ${i.instrProfileId&&i.subscription_status!=='active'?`<button class="btn btn-green" style="font-size:12px" onclick="approveInstructor('${i.instrProfileId}','${i.profileId}','${i.email}','${i.full_name}');closeModal()">✓ Approve</button>`:''}
       <button class="btn btn-outline" style="font-size:12px" onclick="closeModal()">Close</button>
     </div>
   `
@@ -247,21 +261,23 @@ async function viewInstrDetail(instrId) {
 }
 
 async function loadInstructors() {
-  const { data } = await sb.from('instructor_profiles').select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode)').order('created_at',{ascending:false})
-  allInstrs = data || []
+  const { data } = await sb.from('profiles')
+    .select('id,full_name,email,created_at,city,postcode,instructor_profiles(id,subscription_status,car_make_model,transmission,test_centre,years_experience,bio,pass_rate,total_lessons,avg_rating,total_reviews)')
+    .eq('role','instructor').order('created_at',{ascending:false})
+  allInstrs = (data||[]).map(normalizeInstructor)
   const tbody = document.getElementById('instr-tbody')
-  tbody.innerHTML = allInstrs.map(ip => `
+  tbody.innerHTML = allInstrs.map(i => `
     <tr>
-      <td><strong>${ip.profile?.full_name||'–'}</strong></td>
-      <td style="color:var(--n3)">${ip.profile?.email||'–'}</td>
-      <td style="color:var(--n3)">${ip.profile?.city||ip.profile?.postcode||'–'}</td>
-      <td><span class="badge ${ip.subscription_status==='active'?'badge-done':ip.subscription_status==='inactive'?'badge-pend':'badge-warn'}">${ip.subscription_status}</span></td>
-      <td style="color:var(--n3)">${fmtDate(ip.profile?.created_at)}</td>
+      <td><strong>${i.full_name}</strong></td>
+      <td style="color:var(--n3)">${i.email}</td>
+      <td style="color:var(--n3)">${i.city||i.postcode||'–'}</td>
+      <td><span class="badge ${i.subscription_status==='active'?'badge-done':i.subscription_status==='inactive'?'badge-pend':'badge-warn'}">${i.subscription_status}</span></td>
+      <td style="color:var(--n3)">${fmtDate(i.created_at)}</td>
       <td class="admin-actions">
-        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewInstrDetail('${ip.id}')">View</button>
-        <button class="btn-sm btn-sm-red" onclick="deleteUser('${ip.profile?.id}','${ip.profile?.full_name}')">Delete</button>
-        ${ip.subscription_status!=='active'?`<button class="btn-sm btn-sm-green" onclick="approveInstructor('${ip.id}','${ip.profile?.id}','${ip.profile?.email}','${ip.profile?.full_name}')">Approve</button>`:''}
-        <button class="btn-sm btn-sm-blue" onclick="promptPayment('${ip.id}','${ip.profile?.email}','${ip.profile?.full_name}')">💳 Pay</button>
+        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewInstrDetail('${i.profileId}')">View</button>
+        <button class="btn-sm btn-sm-red" onclick="deleteUser('${i.profileId}','${i.full_name}')">Delete</button>
+        ${i.instrProfileId&&i.subscription_status!=='active'?`<button class="btn-sm btn-sm-green" onclick="approveInstructor('${i.instrProfileId}','${i.profileId}','${i.email}','${i.full_name}')">Approve</button>`:''}
+        ${i.instrProfileId?`<button class="btn-sm btn-sm-blue" onclick="promptPayment('${i.instrProfileId}','${i.email}','${i.full_name}')">💳 Pay</button>`:''}
       </td>
     </tr>
   `).join('')
