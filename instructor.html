@@ -270,7 +270,8 @@ let CU = null, CP = null, IP = null
   document.getElementById('app').style.flexDirection = 'column'
   await loadProfile()
   subscribeNotifications()
-  await Promise.all([loadDashboard(), loadIBookings('confirmed'), loadStudents(), loadMessages(), loadNotifications()])
+  loadNotifications()   // fire and forget — badge count only
+  loadDashboard()       // upcoming lessons on dashboard tab
 })()
 
 document.addEventListener('click', e => {
@@ -495,12 +496,16 @@ async function manageSub() {
 }
 
 
+const _tabLoaded = {}
 function switchTab(i) {
   for (let j = 0; j < 6; j++) {
     document.getElementById('tab'+j)?.classList.toggle('active', j===i)
     document.getElementById('p'+j)?.classList.toggle('active', j===i)
   }
   closeDD()
+  if (i === 1 && !_tabLoaded[1]) { _tabLoaded[1] = true; loadIBookings('confirmed') }
+  if (i === 2 && !_tabLoaded[2]) { _tabLoaded[2] = true; loadStudents() }
+  if (i === 3 && !_tabLoaded[3]) { _tabLoaded[3] = true; loadMessages() }
   if (i === 5) setTimeout(initCalendar, 60)
 }
 

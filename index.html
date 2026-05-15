@@ -320,8 +320,9 @@ let CU = null, CP = null, LP = null, isLoggedIn = false
       // Learner — set up full app
       CU = user; CP = profile; isLoggedIn = true
       setupLearnerNav(profile)
+      await loadProfile()
       subscribeNotifications()
-      await Promise.all([loadLearnerData(), loadNotifications()])
+      loadNotifications()   // fire and forget — just sets badge count
       return
     }
   }
@@ -373,20 +374,19 @@ document.addEventListener('click', e => {
 function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
 
 // ── TABS ─────────────────────────────────────────────────────
+const _tabLoaded = {}
 function switchTab(i) {
   for (let j = 0; j < 5; j++) {
     document.getElementById('tab'+j)?.classList.toggle('active', j===i)
     document.getElementById('p'+j)?.classList.toggle('active', j===i)
   }
   document.getElementById('prof-dd').classList.remove('open')
-  // Refresh map size when switching to explore
   if (i === 0 && leafMap) leafMap.invalidateSize()
-}
-
-// ── LOAD LEARNER DATA ─────────────────────────────────────────
-async function loadLearnerData() {
-  await loadProfile()
-  await Promise.all([loadBookings('confirmed'), loadMessages(), loadProgress()])
+  if (!isLoggedIn) return
+  if (i === 1 && !_tabLoaded[1]) { _tabLoaded[1] = true; loadMessages() }
+  if (i === 2 && !_tabLoaded[2]) { _tabLoaded[2] = true; loadBookings('confirmed') }
+  if (i === 3 && !_tabLoaded[3]) { _tabLoaded[3] = true; loadProgress() }
+  if (i === 4 && !_tabLoaded[4]) { _tabLoaded[4] = true; loadProfile() }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
