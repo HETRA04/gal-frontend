@@ -50,8 +50,13 @@
   document.getElementById('reg-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = document.getElementById('submit-btn'); btn.disabled = true; btn.textContent = 'Creating account…'
-    const { error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: document.getElementById('name').value.trim(), role: 'learner', postcode: document.getElementById('postcode').value.trim(), test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
+    const name = document.getElementById('name').value.trim()
+    const { data, error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: name, role: 'learner', postcode: document.getElementById('postcode').value.trim(), test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
     if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+    // Ensure profiles row exists — trigger handles it but insert defensively too
+    if (data?.user) {
+      await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: name, onboarding_done: true }, { onConflict: 'id' })
+    }
     toast('✅ Account created!'); setTimeout(() => window.location.href = '/index.html', 1200)
   })
 })()
