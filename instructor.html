@@ -58,9 +58,31 @@
   <nav class="top-nav">
     <a href="#" class="nav-logo blue">get a <em>lesson.</em></a>
     <div class="nav-right">
+      <div class="notif-bell-wrap" id="notif-bell-wrap">
+        <button class="nav-bell" onclick="toggleNotifPanel()" title="Notifications">
+          <svg width="16" height="16" fill="none" stroke="var(--n2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+      </div>
       <div class="nav-av blue" id="nav-av" onclick="toggleDD()" style="cursor:pointer;font-size:16px;font-weight:800">?</div>
     </div>
   </nav>
+
+  <!-- NOTIFICATION PANEL -->
+  <div class="notif-panel" id="notif-panel">
+    <div class="notif-ph">
+      <h3>Notifications</h3>
+      <button style="font-size:11px;font-weight:700;color:var(--b);background:none;border:none;cursor:pointer;font-family:var(--F)" onclick="markAllNotifRead()">Mark all read</button>
+    </div>
+    <div class="notif-list" id="notif-list"><div class="notif-empty">No notifications yet</div></div>
+  </div>
+
+  <!-- NOTIFICATION BANNER -->
+  <div class="notif-banner" id="notif-banner">
+    <span id="nb-icon">🔔</span>
+    <span id="nb-text" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <button class="notif-banner-x" onclick="document.getElementById('notif-banner').classList.remove('show')">×</button>
+  </div>
 
   <!-- PENDING BANNER -->
   <div id="pending-banner" style="display:none" class="pending-banner">
@@ -91,23 +113,57 @@
     <div id="i-bookings" style="padding:10px 14px"></div>
   </div>
 
-  <!-- AVAILABILITY PANEL -->
-  <div class="panel" id="p5">
-    <div class="page-hdr"><h2>My Availability</h2></div>
-    <div style="padding:10px 14px">
-      <div style="background:var(--bl);border:1px solid #bfdbfe;border-radius:8px;padding:11px 13px;margin-bottom:14px;font-size:12px;color:var(--bd)">Add open slots that learners can request. Block out time you are unavailable.</div>
-      <div style="font-size:13px;font-weight:700;color:var(--n);margin-bottom:10px">Add new slot</div>
-      <div class="grid-2">
-        <div class="form-group blue"><label>Date & start time</label><input type="datetime-local" id="slot-start"></div>
-        <div class="form-group blue"><label>End time</label><input type="datetime-local" id="slot-end"></div>
-      </div>
-      <div class="form-group blue"><label>Slot type</label>
-        <select id="slot-type"><option value="open">Open — learners can request this</option><option value="blocked">Blocked — personal time, not available</option></select>
-      </div>
-      <button class="btn btn-blue" onclick="addSlot()">Add slot</button>
+  <!-- CALENDAR PANEL -->
+  <div class="panel" id="p5" style="padding-bottom:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--w);border-bottom:1px solid var(--bdr);flex-shrink:0">
+      <h2 style="font-size:18px;font-weight:800;color:var(--n)">My Calendar</h2>
+      <button onclick="openImportCalModal()" style="font-size:11px;font-weight:700;color:var(--b);background:var(--bl);border:1px solid #bfdbfe;border-radius:6px;padding:6px 11px;cursor:pointer;font-family:var(--F)">+ Import Calendar</button>
     </div>
-    <div style="padding:0 14px 6px;font-size:13px;font-weight:700;color:var(--n);margin-top:14px">Upcoming slots</div>
-    <div id="slots-list" style="padding:0 14px"></div>
+    <div style="display:flex;align-items:center;gap:7px;padding:8px 14px;background:var(--w);border-bottom:1px solid var(--bdr);flex-shrink:0">
+      <button onclick="calPrev()" style="width:28px;height:28px;border:1.5px solid var(--bdr);border-radius:6px;background:var(--w);cursor:pointer;font-size:15px;line-height:1">‹</button>
+      <button onclick="calNext()" style="width:28px;height:28px;border:1.5px solid var(--bdr);border-radius:6px;background:var(--w);cursor:pointer;font-size:15px;line-height:1">›</button>
+      <button onclick="calToday()" style="font-size:11px;font-weight:700;padding:5px 10px;border:1.5px solid var(--bdr);border-radius:6px;background:var(--w);cursor:pointer;color:var(--n);font-family:var(--F)">Today</button>
+      <div id="cal-title" style="font-size:12px;font-weight:700;color:var(--n);flex:1;text-align:center"></div>
+      <div style="display:flex;border:1.5px solid var(--bdr);border-radius:6px;overflow:hidden">
+        <button class="cal-vbtn on" id="cv-5d" onclick="setCalView('timeGridFiveDay')">5 days</button>
+        <button class="cal-vbtn" id="cv-day" onclick="setCalView('timeGridDay')">Day</button>
+        <button class="cal-vbtn" id="cv-mo" onclick="setCalView('dayGridMonth')">Month</button>
+      </div>
+    </div>
+    <div style="background:var(--gl);border-bottom:1px solid rgba(29,191,115,.2);padding:7px 14px;font-size:11px;color:#166534;font-weight:600;flex-shrink:0">
+      Drag to select a time block → mark as <strong>Available</strong> or <strong>Busy</strong>. Click an event to delete it.
+    </div>
+    <div id="cal-container" style="flex:1;overflow:auto;padding-bottom:68px"></div>
+  </div>
+
+  <!-- SLOT CREATOR MODAL -->
+  <div class="modal-bg" id="slot-modal" onclick="if(event.target===this)closeSlotModal()">
+    <div class="modal-sheet">
+      <button class="mclose" onclick="closeSlotModal()">&#215;</button>
+      <div class="mhandle"></div>
+      <h3 style="font-size:16px;font-weight:800;color:var(--n);margin-bottom:4px">Add to calendar</h3>
+      <p id="slot-modal-time" style="font-size:13px;color:var(--n3);margin-bottom:18px"></p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-green" onclick="saveCalSlot('open')">✅ Mark as Available — learners can book this</button>
+        <button class="btn" style="background:#fee2e2;color:#991b1b;border:none;padding:12px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--F)" onclick="saveCalSlot('blocked')">🚫 Mark as Busy — block this time</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPORT CALENDAR MODAL -->
+  <div class="modal-bg" id="import-cal-modal" onclick="if(event.target===this)closeImportCalModal()">
+    <div class="modal-sheet">
+      <button class="mclose" onclick="closeImportCalModal()">&#215;</button>
+      <div class="mhandle"></div>
+      <h3 style="font-size:16px;font-weight:800;color:var(--n);margin-bottom:6px">Import Calendar</h3>
+      <p style="font-size:12px;color:var(--n3);margin-bottom:14px;line-height:1.6">Paste your Google or Apple Calendar iCal URL to sync your existing events into your availability view.</p>
+      <div style="background:var(--bl);border:1px solid #bfdbfe;border-radius:8px;padding:11px;margin-bottom:14px;font-size:11px;color:var(--bd);line-height:1.7">
+        <strong>Google Calendar:</strong> Open Google Calendar → Settings → [your calendar] → Integrate → copy the <em>Public address in iCal format</em><br>
+        <strong>Apple iCal:</strong> Open Calendar app → right-click calendar → Get Info → copy the calendar URL
+      </div>
+      <div class="form-group blue"><label>iCal URL</label><input type="url" id="ical-url-input" placeholder="https://calendar.google.com/calendar/ical/..."></div>
+      <button class="btn btn-blue" onclick="saveIcalUrl()">Save &amp; sync</button>
+    </div>
   </div>
 
   <!-- STUDENTS PANEL -->
@@ -180,8 +236,8 @@
       <span>Bookings</span>
     </button>
     <button class="mob-tab" id="tab5" onclick="switchTab(5)">
-      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>
-      <span>Availability</span>
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 17l2 2 4-4"/></svg>
+      <span>Calendar</span>
     </button>
     <button class="mob-tab" id="tab2" onclick="switchTab(2)">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
@@ -199,6 +255,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="/js/testcentres.js"></script>
 <script src="/js/app.js"></script>
 <script>
@@ -212,13 +269,19 @@ let CU = null, CP = null, IP = null
   document.getElementById('app').style.display = 'flex'
   document.getElementById('app').style.flexDirection = 'column'
   await loadProfile()
-  await Promise.all([loadDashboard(), loadIBookings('confirmed'), loadStudents(), loadMessages()])
+  subscribeNotifications()
+  await Promise.all([loadDashboard(), loadIBookings('confirmed'), loadStudents(), loadMessages(), loadNotifications()])
 })()
 
 document.addEventListener('click', e => {
   const dd = document.getElementById('prof-dd')
   const av = document.getElementById('nav-av')
   if (dd && !dd.contains(e.target) && e.target !== av) dd.classList.remove('open')
+  const np = document.getElementById('notif-panel')
+  const nb = document.getElementById('notif-bell-wrap')
+  if (np && np.classList.contains('open') && !np.contains(e.target) && !nb?.contains(e.target)) {
+    np.classList.remove('open'); _notifOpen = false
+  }
 })
 
 function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
@@ -341,7 +404,7 @@ async function loadMessages() {
   if (!data?.length) { wrap.innerHTML = '<div style="padding:24px;text-align:center;color:var(--n3);font-size:13px">No messages yet</div>'; return }
   wrap.innerHTML = data.map((c, i) => {
     const name = c.learner?.full_name || 'Student'
-    return '<div class="inbox-item" onclick="openIChat(\'' + c.id + '\',\'' + name + '\')">'
+    return '<div class="inbox-item" onclick="openIChat(\'' + c.id + '\',\'' + name + '\',\'' + c.learner_id + '\')">'
       + '<div class="ii-av" style="background:' + COLOURS[i%COLOURS.length] + '">' + ini(name) + '</div>'
       + '<div style="flex:1;min-width:0"><div class="ii-name">' + name + '</div>'
       + '<div class="ii-prev">' + (c.last_message||'No messages yet') + '</div></div>'
@@ -349,7 +412,8 @@ async function loadMessages() {
   }).join('')
 }
 
-async function openIChat(convId, name) {
+async function openIChat(convId, name, learnerUserId) {
+  window._chatLearnerId = learnerUserId || null
   document.getElementById('i-inbox-wrap').style.display = 'none'
   const cv = document.getElementById('i-chat-view'); cv.classList.add('open')
   const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
@@ -374,7 +438,10 @@ async function sendIMsg(convId) {
   const d = document.createElement('div')
   d.innerHTML = '<div><div class="cmsg sent-b">' + txt + '</div><div class="cmsg-t" style="text-align:right">' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + '</div></div>'
   msgs.appendChild(d); msgs.scrollTop = 99999; inp.value = ''
+  const nowIso = now.toISOString()
   await sb.from('messages').insert({ conversation_id: convId, sender_id: CU.id, content: txt, type: 'text' })
+  await sb.from('conversations').update({ last_message: txt, last_message_at: nowIso }).eq('id', convId)
+  if (window._chatLearnerId) sb.from('notifications').insert({ user_id: window._chatLearnerId, type: 'message', title: 'New message from ' + (CP?.full_name?.split(' ')[0] || 'your instructor'), body: txt.slice(0, 80), is_read: false })
 }
 
 function closeIChat() {
@@ -428,65 +495,181 @@ async function manageSub() {
 }
 
 
-// Fix switchTab to handle 6 panels
-const _origSwitch = switchTab
 function switchTab(i) {
   for (let j = 0; j < 6; j++) {
     document.getElementById('tab'+j)?.classList.toggle('active', j===i)
     document.getElementById('p'+j)?.classList.toggle('active', j===i)
   }
   closeDD()
-  if (i === 5) loadSlots()
+  if (i === 5) setTimeout(initCalendar, 60)
 }
 
-// ── AVAILABILITY ──────────────────────────────────────────────
-async function addSlot() {
-  const start = document.getElementById('slot-start').value
-  const end   = document.getElementById('slot-end').value
-  const type  = document.getElementById('slot-type').value
-  if (!start || !end) { toast('Please set start and end times'); return }
-  if (new Date(end) <= new Date(start)) { toast('End time must be after start time'); return }
-  const { error } = await sb.from('availability_slots').insert({
-    instructor_id: IP?.id,
-    start_time: new Date(start).toISOString(),
-    end_time: new Date(end).toISOString(),
-    slot_type: type,
-    is_booked: false,
+// ── CALENDAR ──────────────────────────────────────────────────
+let _cal = null, _calPending = null
+
+function initCalendar() {
+  if (_cal || !IP) return
+  const el = document.getElementById('cal-container'); if (!el) return
+  _cal = new FullCalendar.Calendar(el, {
+    initialView: 'timeGridFiveDay',
+    views: { timeGridFiveDay: { type: 'timeGrid', duration: { days: 5 }, buttonText: '5 days' } },
+    headerToolbar: false,
+    slotMinTime: '06:00:00',
+    slotMaxTime: '22:00:00',
+    height: '100%',
+    selectable: true,
+    selectMirror: true,
+    nowIndicator: true,
+    allDaySlot: false,
+    slotDuration: '00:30:00',
+    expandRows: true,
+    dayHeaderFormat: { weekday: 'short', day: 'numeric', month: 'short' },
+    datesSet: info => {
+      const s = new Date(info.start), e = new Date(info.end.getTime() - 86400000)
+      document.getElementById('cal-title').textContent =
+        s.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) + ' – ' +
+        e.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+    },
+    select: info => {
+      _calPending = info
+      document.getElementById('slot-modal-time').textContent =
+        fmtDate(info.startStr) + ' · ' + fmtTime(info.startStr) + ' – ' + fmtTime(info.endStr)
+      document.getElementById('slot-modal').classList.add('open')
+    },
+    eventClick: info => {
+      if (info.event.extendedProps.imported) return
+      if (confirm('Remove this slot?')) {
+        sb.from('availability_slots').delete().eq('id', info.event.extendedProps.dbId)
+        info.event.remove(); toast('Slot removed')
+      }
+    },
+    events: async (fetchInfo, success) => {
+      if (!IP?.id) { success([]); return }
+      const { data } = await sb.from('availability_slots').select('*')
+        .eq('instructor_id', IP.id)
+        .gte('start_time', fetchInfo.startStr)
+        .lte('start_time', fetchInfo.endStr)
+      success((data||[]).map(s => ({
+        id: s.id,
+        title: s.is_booked ? 'Booked' : s.slot_type === 'open' ? 'Available' : 'Busy',
+        start: s.start_time, end: s.end_time,
+        backgroundColor: s.is_booked ? '#2563EB' : s.slot_type === 'open' ? '#1DBF73' : '#ef4444',
+        borderColor: 'transparent', textColor: '#fff',
+        extendedProps: { dbId: s.id }
+      })))
+    }
   })
+  _cal.render()
+}
+
+function calPrev()  { _cal?.prev() }
+function calNext()  { _cal?.next() }
+function calToday() { _cal?.today() }
+
+function setCalView(view) {
+  _cal?.changeView(view)
+  document.querySelectorAll('.cal-vbtn').forEach(b => b.classList.remove('on'))
+  const map = { timeGridFiveDay:'cv-5d', timeGridDay:'cv-day', dayGridMonth:'cv-mo' }
+  document.getElementById(map[view])?.classList.add('on')
+}
+
+function closeSlotModal() { document.getElementById('slot-modal').classList.remove('open'); _cal?.unselect() }
+
+async function saveCalSlot(type) {
+  if (!_calPending || !IP) return
+  const { data, error } = await sb.from('availability_slots').insert({
+    instructor_id: IP.id,
+    start_time: new Date(_calPending.startStr).toISOString(),
+    end_time: new Date(_calPending.endStr).toISOString(),
+    slot_type: type, is_booked: false
+  }).select().single()
   if (error) { toast('Error: ' + error.message); return }
-  toast('✅ Slot added')
-  document.getElementById('slot-start').value = ''
-  document.getElementById('slot-end').value = ''
-  loadSlots()
+  closeSlotModal(); _cal?.refetchEvents()
+  toast(type === 'open' ? '✅ Available slot added' : '🚫 Time blocked')
 }
 
-async function loadSlots() {
-  if (!IP?.id) return
-  const { data } = await sb.from('availability_slots')
-    .select('*').eq('instructor_id', IP.id)
-    .gte('end_time', new Date().toISOString())
-    .order('start_time', { ascending: true })
-  const list = document.getElementById('slots-list')
-  if (!data?.length) { list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--n3);font-size:13px">No upcoming slots. Add some above so learners can request lessons.</div>'; return }
-  list.innerHTML = data.map(s => {
-    const isBlocked = s.slot_type === 'blocked'
-    const isBooked  = s.is_booked
-    const color = isBlocked ? 'var(--red)' : isBooked ? 'var(--warn)' : 'var(--g)'
-    const label = isBlocked ? '🚫 Blocked' : isBooked ? '⏳ Pending request' : '✅ Open'
-    return '<div style="background:var(--w);border:1.5px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid ' + color + '">'
-      + '<div style="display:flex;align-items:flex-start;justify-content:space-between">'
-      + '<div><div style="font-size:13px;font-weight:700;color:var(--n)">' + fmtDate(s.start_time) + '</div>'
-      + '<div style="font-size:11px;color:var(--n3);margin-top:2px">' + fmtTime(s.start_time) + ' – ' + fmtTime(s.end_time) + '</div></div>'
-      + '<div style="display:flex;align-items:center;gap:8px">'
-      + '<span style="font-size:11px;font-weight:600;color:' + color + '">' + label + '</span>'
-      + '<button onclick="deleteSlot(\'' + s.id + '\')" style="width:26px;height:26px;border:1.5px solid var(--bdr);border-radius:50%;background:var(--w);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">×</button>'
-      + '</div></div></div>'
-  }).join('')
+function openImportCalModal() {
+  const saved = localStorage.getItem('gal_ical_url') || ''
+  document.getElementById('ical-url-input').value = saved
+  document.getElementById('import-cal-modal').classList.add('open')
+}
+function closeImportCalModal() { document.getElementById('import-cal-modal').classList.remove('open') }
+async function saveIcalUrl() {
+  const url = document.getElementById('ical-url-input').value.trim()
+  if (!url) { toast('Please enter a URL'); return }
+  localStorage.setItem('gal_ical_url', url)
+  if (IP) await sb.from('instructor_profiles').update({ ical_url: url }).eq('id', IP.id)
+  closeImportCalModal(); toast('✅ Calendar URL saved')
 }
 
-async function deleteSlot(id) {
-  await sb.from('availability_slots').delete().eq('id', id)
-  toast('Slot removed'); loadSlots()
+// ── NOTIFICATIONS ──────────────────────────────────────────────
+let _notifOpen = false, _unread = 0, _notifSub = null
+const _notifIcons = { booking_confirmed:'✅', booking_cancelled:'❌', new_booking:'📩', message:'💬', payment:'💳' }
+
+async function loadNotifications() {
+  if (!CU) return
+  const { data } = await sb.from('notifications').select('*').eq('user_id', CU.id).order('created_at', { ascending: false }).limit(40)
+  _unread = (data||[]).filter(n => !n.is_read).length
+  updateNotifBadge()
+  const list = document.getElementById('notif-list'); if (!list) return
+  if (!data?.length) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return }
+  list.innerHTML = data.map(n =>
+    '<div class="notif-item' + (n.is_read ? '' : ' unread') + '">'
+    + '<div class="notif-icon">' + (_notifIcons[n.type] || '🔔') + '</div>'
+    + '<div style="flex:1;min-width:0"><div class="notif-title">' + n.title + '</div>'
+    + (n.body ? '<div class="notif-body">' + n.body + '</div>' : '')
+    + '<div class="notif-time">' + timeAgo(n.created_at) + '</div></div>'
+    + (!n.is_read ? '<div class="notif-dot"></div>' : '')
+    + '</div>'
+  ).join('')
+}
+
+function updateNotifBadge() {
+  const b = document.getElementById('notif-badge'); if (!b) return
+  if (_unread > 0) { b.textContent = _unread > 9 ? '9+' : _unread; b.style.display = 'flex' }
+  else { b.style.display = 'none' }
+}
+
+async function toggleNotifPanel() {
+  _notifOpen = !_notifOpen
+  document.getElementById('notif-panel').classList.toggle('open', _notifOpen)
+  if (_notifOpen) {
+    await loadNotifications()
+    if (_unread > 0) {
+      await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
+      _unread = 0; updateNotifBadge()
+    }
+  }
+}
+
+async function markAllNotifRead() {
+  await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id)
+  _unread = 0; updateNotifBadge(); loadNotifications()
+}
+
+function subscribeNotifications() {
+  if (!CU) return
+  _notifSub = sb.channel('notif_instr_' + CU.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + CU.id }, payload => {
+      _unread++; updateNotifBadge(); showNotifBanner(payload.new)
+      if (_notifOpen) loadNotifications()
+    }).subscribe()
+}
+
+function showNotifBanner(n) {
+  const b = document.getElementById('notif-banner'); if (!b) return
+  document.getElementById('nb-icon').textContent = _notifIcons[n.type] || '🔔'
+  document.getElementById('nb-text').textContent = n.title + (n.body ? ' — ' + n.body.slice(0, 60) : '')
+  b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 5000)
+}
+
+function timeAgo(iso) {
+  const m = Math.floor((Date.now() - new Date(iso)) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + 'h ago'
+  return Math.floor(h / 24) + 'd ago'
 }
 
 // ── BOOKING REQUESTS — show request note, approve/decline ──────
@@ -520,14 +703,16 @@ async function loadIBookings(status, btn) {
 }
 
 async function approveBooking(bookingId, slotId) {
-  await sb.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId)
+  const { data: bk } = await sb.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId).select('learner_id,scheduled_at').single()
   if (slotId) await sb.from('availability_slots').update({ is_booked: true }).eq('id', slotId)
+  if (bk?.learner_id) sb.from('notifications').insert({ user_id: bk.learner_id, type: 'booking_confirmed', title: (CP?.full_name?.split(' ')[0] || 'Your instructor') + ' confirmed your lesson', body: bk.scheduled_at ? 'Scheduled for ' + fmtDate(bk.scheduled_at) + ' at ' + fmtTime(bk.scheduled_at) : null, is_read: false })
   toast('✅ Booking confirmed'); loadIBookings('pending')
 }
 
 async function declineBooking(bookingId, slotId) {
-  await sb.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId)
+  const { data: bk } = await sb.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId).select('learner_id').single()
   if (slotId) await sb.from('availability_slots').update({ is_booked: false }).eq('id', slotId)
+  if (bk?.learner_id) sb.from('notifications').insert({ user_id: bk.learner_id, type: 'booking_cancelled', title: 'Your lesson request was declined', body: (CP?.full_name?.split(' ')[0] || 'Your instructor') + ' could not confirm this booking.', is_read: false })
   toast('Booking declined'); loadIBookings('pending')
 }
 

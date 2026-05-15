@@ -129,11 +129,33 @@
     </button>
   </div>
 
+  <!-- NOTIFICATION PANEL -->
+  <div class="notif-panel" id="notif-panel">
+    <div class="notif-ph">
+      <h3>Notifications</h3>
+      <button style="font-size:11px;font-weight:700;color:var(--g);background:none;border:none;cursor:pointer;font-family:var(--F)" onclick="markAllNotifRead()">Mark all read</button>
+    </div>
+    <div class="notif-list" id="notif-list"><div class="notif-empty">No notifications yet</div></div>
+  </div>
+
+  <!-- NOTIFICATION BANNER -->
+  <div class="notif-banner" id="notif-banner">
+    <span id="nb-icon">🔔</span>
+    <span id="nb-text" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <button class="notif-banner-x" onclick="document.getElementById('notif-banner').classList.remove('show')">×</button>
+  </div>
+
   <!-- TOP NAV -->
   <nav class="top-nav">
     <a href="/index.html" class="nav-logo">get a <em>lesson.</em></a>
     <div class="nav-right">
       <button class="btn-instr" id="instr-btn" onclick="openInstrSignup()">Are you an instructor?</button>
+      <div class="notif-bell-wrap" id="notif-bell-wrap" style="display:none">
+        <button class="nav-bell" onclick="toggleNotifPanel()" title="Notifications">
+          <svg width="16" height="16" fill="none" stroke="var(--n2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+      </div>
       <div class="nav-av green" id="nav-av" onclick="toggleDD()" style="cursor:pointer;font-size:16px;font-weight:800;display:none">?</div>
       <button class="btn-login" id="login-btn" onclick="window.location.href='/login.html'">Sign in</button>
     </div>
@@ -298,7 +320,8 @@ let CU = null, CP = null, LP = null, isLoggedIn = false
       // Learner — set up full app
       CU = user; CP = profile; isLoggedIn = true
       setupLearnerNav(profile)
-      await loadLearnerData()
+      subscribeNotifications()
+      await Promise.all([loadLearnerData(), loadNotifications()])
       return
     }
   }
@@ -311,7 +334,8 @@ function setupLearnerNav(profile) {
   if (!name || name === profile.id) name = profile.email?.split('@')[0] || '?'
   const initial = (name||'').split(' ')[0]?.[0]?.toUpperCase() || '?'
 
-  // Show avatar, hide sign in + instructor button
+  // Show avatar + bell, hide sign in + instructor button
+  document.getElementById('notif-bell-wrap').style.display = 'flex'
   document.getElementById('nav-av').style.display = 'flex'
   document.getElementById('nav-av').textContent = initial
   document.getElementById('login-btn').style.display = 'none'
@@ -340,6 +364,11 @@ document.addEventListener('click', e => {
   const dd = document.getElementById('prof-dd')
   const av = document.getElementById('nav-av')
   if (dd && !dd.contains(e.target) && e.target !== av) dd.classList.remove('open')
+  const np = document.getElementById('notif-panel')
+  const nb = document.getElementById('notif-bell-wrap')
+  if (np && np.classList.contains('open') && !np.contains(e.target) && !nb?.contains(e.target)) {
+    np.classList.remove('open'); _notifOpen = false
+  }
 })
 function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
 
@@ -442,7 +471,7 @@ async function loadMessages() {
   }
   wrap.innerHTML = data.map((c, i) => {
     const name = c.instructor?.full_name || 'Instructor'
-    return '<div class="inbox-item" onclick="openChat(\'' + c.id + '\',\'' + name + '\')">'
+    return '<div class="inbox-item" onclick="openChat(\'' + c.id + '\',\'' + name + '\',\'' + c.instructor_id + '\')">'
       + '<div class="ii-av" style="background:' + COLOURS[i%COLOURS.length] + '">' + ini(name) + '</div>'
       + '<div style="flex:1;min-width:0"><div class="ii-name">' + name + '</div>'
       + '<div class="ii-prev">' + (c.last_message||'No messages yet') + '</div></div>'
@@ -450,7 +479,8 @@ async function loadMessages() {
   }).join('')
 }
 
-async function openChat(convId, name) {
+async function openChat(convId, name, instrUserId) {
+  window._chatInstrId = instrUserId || null
   document.getElementById('inbox-wrap').style.display = 'none'
   const cv = document.getElementById('chat-view'); cv.classList.add('open')
   const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
@@ -476,6 +506,7 @@ async function sendMsg(convId) {
   const nowIso = now.toISOString()
   await sb.from('messages').insert({ conversation_id: convId, sender_id: CU.id, content: txt, type: 'text' })
   await sb.from('conversations').update({ last_message: txt, last_message_at: nowIso }).eq('id', convId)
+  if (window._chatInstrId) sb.from('notifications').insert({ user_id: window._chatInstrId, type: 'message', title: 'New message from ' + (CP?.full_name?.split(' ')[0] || 'a learner'), body: txt.slice(0, 80), is_read: false })
 }
 function closeChat() {
   document.getElementById('inbox-wrap').style.display = ''
@@ -534,6 +565,77 @@ async function loadProfile() {
     document.getElementById('p-trans').textContent = lp?.transmission_pref || '–'
     document.getElementById('p-instructor').textContent = lp?.instructor?.profile?.full_name || 'Not assigned'
   }
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────────
+let _notifOpen = false, _unread = 0, _notifSub = null
+const _notifIcons = { booking_confirmed:'✅', booking_cancelled:'❌', new_booking:'📩', message:'💬', payment:'💳' }
+
+async function loadNotifications() {
+  if (!CU) return
+  const { data } = await sb.from('notifications').select('*').eq('user_id', CU.id).order('created_at', { ascending: false }).limit(40)
+  _unread = (data||[]).filter(n => !n.is_read).length
+  updateNotifBadge()
+  const list = document.getElementById('notif-list'); if (!list) return
+  if (!data?.length) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return }
+  list.innerHTML = data.map(n =>
+    '<div class="notif-item' + (n.is_read ? '' : ' unread') + '">'
+    + '<div class="notif-icon">' + (_notifIcons[n.type] || '🔔') + '</div>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div class="notif-title">' + n.title + '</div>'
+    + (n.body ? '<div class="notif-body">' + n.body + '</div>' : '')
+    + '<div class="notif-time">' + timeAgo(n.created_at) + '</div></div>'
+    + (!n.is_read ? '<div class="notif-dot"></div>' : '')
+    + '</div>'
+  ).join('')
+}
+
+function updateNotifBadge() {
+  const b = document.getElementById('notif-badge'); if (!b) return
+  if (_unread > 0) { b.textContent = _unread > 9 ? '9+' : _unread; b.style.display = 'flex' }
+  else { b.style.display = 'none' }
+}
+
+async function toggleNotifPanel() {
+  _notifOpen = !_notifOpen
+  document.getElementById('notif-panel').classList.toggle('open', _notifOpen)
+  if (_notifOpen) {
+    await loadNotifications()
+    if (_unread > 0) {
+      await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
+      _unread = 0; updateNotifBadge()
+    }
+  }
+}
+
+async function markAllNotifRead() {
+  await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id)
+  _unread = 0; updateNotifBadge(); loadNotifications()
+}
+
+function subscribeNotifications() {
+  if (!CU) return
+  _notifSub = sb.channel('notif_learner_' + CU.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + CU.id }, payload => {
+      _unread++; updateNotifBadge(); showNotifBanner(payload.new)
+      if (_notifOpen) loadNotifications()
+    }).subscribe()
+}
+
+function showNotifBanner(n) {
+  const b = document.getElementById('notif-banner'); if (!b) return
+  document.getElementById('nb-icon').textContent = _notifIcons[n.type] || '🔔'
+  document.getElementById('nb-text').textContent = n.title + (n.body ? ' — ' + n.body.slice(0, 60) : '')
+  b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 5000)
+}
+
+function timeAgo(iso) {
+  const m = Math.floor((Date.now() - new Date(iso)) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + 'h ago'
+  return Math.floor(h / 24) + 'd ago'
 }
 
 async function signOut() { await sb.auth.signOut(); window.location.reload() }

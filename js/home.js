@@ -302,6 +302,8 @@ async function submitBookingRequest() {
 
   if (error) { toast('Error: ' + error.message); if (btn) { btn.disabled = false; btn.textContent = 'Send request →' }; return }
   if (selectedSlotId) await sb.from('availability_slots').update({ is_booked: true }).eq('id', selectedSlotId)
+  // Notify the instructor of the new booking request
+  if (ins.profileUserId) sb.from('notifications').insert({ user_id: ins.profileUserId, type: 'new_booking', title: 'New lesson request', body: note.slice(0, 80), is_read: false })
   closeLearnerModal()
   toast('✅ Request sent! ' + ins.name.split(' ')[0] + ' will confirm shortly.')
   selectedSlotId = null; selectedSlotLabel = ''
