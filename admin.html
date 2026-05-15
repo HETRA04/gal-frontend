@@ -268,39 +268,43 @@ async function loadInstructors() {
 }
 
 async function loadLearners() {
-  const { data } = await sb.from('learner_profiles').select('*,profile:profiles!user_id(id,full_name,email,created_at,city,postcode),instructor:instructor_profiles!current_instructor_id(profile:profiles!user_id(full_name))').order('created_at',{ascending:false})
+  const { data } = await sb.from('profiles')
+    .select('id,full_name,email,created_at,city,postcode,learner_profiles(total_lessons,test_centre,transmission_pref,theory_test_passed)')
+    .eq('role','learner')
+    .order('created_at',{ascending:false})
   allLearners = data || []
   const tbody = document.getElementById('learner-tbody')
-  tbody.innerHTML = allLearners.map(lp => `
-    <tr>
-      <td><strong>${lp.profile?.full_name||'–'}</strong></td>
-      <td style="color:var(--n3)">${lp.profile?.email||'–'}</td>
-      <td style="color:var(--n3)">${lp.profile?.city||lp.profile?.postcode||'–'}</td>
-      <td>${lp.total_lessons||0}</td>
-      <td style="color:var(--n3)">${lp.instructor?.profile?.full_name||'None'}</td>
-      <td style="color:var(--n3)">${fmtDate(lp.profile?.created_at)}</td>
+  tbody.innerHTML = allLearners.map(p => {
+    const lp = Array.isArray(p.learner_profiles) ? p.learner_profiles[0] : p.learner_profiles || {}
+    return `<tr>
+      <td><strong>${p.full_name||'–'}</strong></td>
+      <td style="color:var(--n3)">${p.email||'–'}</td>
+      <td style="color:var(--n3)">${p.city||p.postcode||'–'}</td>
+      <td>${lp?.total_lessons||0}</td>
+      <td style="color:var(--n3)">–</td>
+      <td style="color:var(--n3)">${fmtDate(p.created_at)}</td>
       <td class="admin-actions">
-        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewLearnerDetail('${lp.user_id}')">View</button>
-      <button class="btn-sm btn-sm-red" onclick="deleteUser('${lp.user_id}','${lp.profile?.full_name}')">Delete</button>
+        <button class="btn-sm" style="background:var(--tag);color:var(--n)" onclick="viewLearnerDetail('${p.id}')">View</button>
+        <button class="btn-sm btn-sm-red" onclick="deleteUser('${p.id}','${p.full_name}')">Delete</button>
       </td>
-    </tr>
-  `).join('')
+    </tr>`
+  }).join('')
 }
 
 async function viewLearnerDetail(userId) {
-  const lp = allLearners.find(l => l.user_id === userId)
-  if (!lp) return
+  const p = allLearners.find(l => l.id === userId)
+  if (!p) return
+  const lp = Array.isArray(p.learner_profiles) ? p.learner_profiles[0] : p.learner_profiles || {}
   document.getElementById('modal-body').innerHTML = `
-    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${lp.profile?.full_name}</h3>
+    <h3 style="font-size:17px;font-weight:800;color:var(--n);margin-bottom:14px">${p.full_name||'–'}</h3>
     <table style="width:100%;font-size:12px;border-collapse:collapse">
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.profile?.email||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.profile?.city||lp.profile?.postcode||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.test_centre||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.transmission_pref||'–'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Theory passed</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.theory_test_passed?'Yes':'No'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Total lessons</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.total_lessons||0}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Instructor</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp.instructor?.profile?.full_name||'Not assigned'}</td></tr>
-      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(lp.profile?.created_at)}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Email</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${p.email||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Location</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${p.city||p.postcode||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Test centre</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp?.test_centre||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Transmission</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp?.transmission_pref||'–'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Theory passed</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp?.theory_test_passed?'Yes':'No'}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3);border-bottom:1px solid var(--bdr)">Total lessons</td><td style="padding:6px 0;font-weight:600;text-align:right;border-bottom:1px solid var(--bdr)">${lp?.total_lessons||0}</td></tr>
+      <tr><td style="padding:6px 0;color:var(--n3)">Joined</td><td style="padding:6px 0;font-weight:600;text-align:right">${fmtDate(p.created_at)}</td></tr>
     </table>
     <button class="btn btn-outline" style="margin-top:16px;font-size:12px" onclick="closeModal()">Close</button>
   `
