@@ -129,20 +129,16 @@
     </button>
   </div>
 
-  <!-- NOTIFICATION PANEL -->
-  <div class="notif-panel" id="notif-panel">
-    <div class="notif-ph">
-      <h3>Notifications</h3>
-      <button style="font-size:11px;font-weight:700;color:var(--g);background:none;border:none;cursor:pointer;font-family:var(--F)" onclick="markAllNotifRead()">Mark all read</button>
+  <!-- NOTIFICATIONS PAGE -->
+  <div id="notif-page" style="display:none;position:fixed;inset:0;top:58px;background:var(--bg);z-index:600;flex-direction:column">
+    <div style="background:var(--w);border-bottom:1px solid var(--bdr);padding:13px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1;flex-shrink:0">
+      <button onclick="closeNotifPage()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--bdr);background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="14" height="14" fill="none" stroke="var(--n)" stroke-width="2" stroke-linecap="round" viewBox="0 0 20 20"><path d="M12 15l-5-5 5-5"/></svg>
+      </button>
+      <h2 style="font-size:17px;font-weight:800;color:var(--n);flex:1">Notifications</h2>
+      <button onclick="markAllNotifRead()" style="font-size:11px;font-weight:700;color:var(--g);background:none;border:none;cursor:pointer;font-family:var(--F)">Mark all read</button>
     </div>
-    <div class="notif-list" id="notif-list"><div class="notif-empty">No notifications yet</div></div>
-  </div>
-
-  <!-- NOTIFICATION BANNER -->
-  <div class="notif-banner" id="notif-banner">
-    <span id="nb-icon">🔔</span>
-    <span id="nb-text" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-    <button class="notif-banner-x" onclick="document.getElementById('notif-banner').classList.remove('show')">×</button>
+    <div id="notif-list" style="flex:1;overflow-y:auto"></div>
   </div>
 
   <!-- TOP NAV -->
@@ -573,21 +569,29 @@ const _notifIcons = { booking_confirmed:'✅', booking_cancelled:'❌', new_book
 
 async function loadNotifications() {
   if (!CU) return
-  const { data } = await sb.from('notifications').select('*').eq('user_id', CU.id).order('created_at', { ascending: false }).limit(40)
+  const { data } = await sb.from('notifications').select('*').eq('user_id', CU.id).order('created_at', { ascending: false }).limit(60)
   _unread = (data||[]).filter(n => !n.is_read).length
   updateNotifBadge()
   const list = document.getElementById('notif-list'); if (!list) return
-  if (!data?.length) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return }
-  list.innerHTML = data.map(n =>
-    '<div class="notif-item' + (n.is_read ? '' : ' unread') + '">'
-    + '<div class="notif-icon">' + (_notifIcons[n.type] || '🔔') + '</div>'
-    + '<div style="flex:1;min-width:0">'
-    + '<div class="notif-title">' + n.title + '</div>'
-    + (n.body ? '<div class="notif-body">' + n.body + '</div>' : '')
-    + '<div class="notif-time">' + timeAgo(n.created_at) + '</div></div>'
-    + (!n.is_read ? '<div class="notif-dot"></div>' : '')
-    + '</div>'
-  ).join('')
+  if (!data?.length) {
+    list.innerHTML = '<div style="padding:48px 24px;text-align:center;color:var(--n3);font-size:13px">No notifications yet.<br><span style="font-size:11px">Booking activity will appear here.</span></div>'
+    return
+  }
+  const bgMap = { booking_confirmed:'#f0fdf4', booking_cancelled:'#fff1f2', new_booking:'#eff6ff', message:'#fafafa' }
+  const borderMap = { booking_confirmed:'#86efac', booking_cancelled:'#fca5a5', new_booking:'#93c5fd', message:'var(--bdr)' }
+  list.innerHTML = data.map(n => {
+    const icon = _notifIcons[n.type] || '🔔'
+    const bg = n.is_read ? 'var(--w)' : (bgMap[n.type] || '#f0f9ff')
+    const border = n.is_read ? 'var(--bdr)' : (borderMap[n.type] || 'var(--b)')
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border-bottom:1px solid var(--bdr);background:' + bg + ';border-left:3px solid ' + border + '">'
+      + '<div style="width:36px;height:36px;border-radius:50%;background:var(--bg);border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">' + icon + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--n);margin-bottom:2px">' + n.title + '</div>'
+      + (n.body ? '<div style="font-size:12px;color:var(--n3);line-height:1.5;margin-bottom:3px">' + n.body + '</div>' : '')
+      + '<div style="font-size:10px;color:var(--n4)">' + timeAgo(n.created_at) + '</div></div>'
+      + (!n.is_read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--b);flex-shrink:0;margin-top:5px"></div>' : '')
+      + '</div>'
+  }).join('')
 }
 
 function updateNotifBadge() {
@@ -597,16 +601,18 @@ function updateNotifBadge() {
 }
 
 async function toggleNotifPanel() {
-  _notifOpen = !_notifOpen
-  document.getElementById('notif-panel').classList.toggle('open', _notifOpen)
-  if (_notifOpen) {
-    await loadNotifications()
-    if (_unread > 0) {
-      await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
-      _unread = 0; updateNotifBadge()
-    }
+  const page = document.getElementById('notif-page')
+  const isOpen = page.style.display === 'flex'
+  if (isOpen) { closeNotifPage(); return }
+  page.style.display = 'flex'
+  await loadNotifications()
+  if (_unread > 0) {
+    sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
+    _unread = 0; updateNotifBadge()
   }
 }
+
+function closeNotifPage() { document.getElementById('notif-page').style.display = 'none' }
 
 async function markAllNotifRead() {
   await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id)

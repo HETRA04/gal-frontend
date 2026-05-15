@@ -68,20 +68,16 @@
     </div>
   </nav>
 
-  <!-- NOTIFICATION PANEL -->
-  <div class="notif-panel" id="notif-panel">
-    <div class="notif-ph">
-      <h3>Notifications</h3>
-      <button style="font-size:11px;font-weight:700;color:var(--b);background:none;border:none;cursor:pointer;font-family:var(--F)" onclick="markAllNotifRead()">Mark all read</button>
+  <!-- NOTIFICATIONS PAGE -->
+  <div id="notif-page" style="display:none;position:fixed;inset:0;top:58px;background:var(--bg);z-index:600;flex-direction:column">
+    <div style="background:var(--w);border-bottom:1px solid var(--bdr);padding:13px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1;flex-shrink:0">
+      <button onclick="closeNotifPage()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--bdr);background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="14" height="14" fill="none" stroke="var(--n)" stroke-width="2" stroke-linecap="round" viewBox="0 0 20 20"><path d="M12 15l-5-5 5-5"/></svg>
+      </button>
+      <h2 style="font-size:17px;font-weight:800;color:var(--n);flex:1">Notifications</h2>
+      <button onclick="markAllNotifRead()" style="font-size:11px;font-weight:700;color:var(--b);background:none;border:none;cursor:pointer;font-family:var(--F)">Mark all read</button>
     </div>
-    <div class="notif-list" id="notif-list"><div class="notif-empty">No notifications yet</div></div>
-  </div>
-
-  <!-- NOTIFICATION BANNER -->
-  <div class="notif-banner" id="notif-banner">
-    <span id="nb-icon">🔔</span>
-    <span id="nb-text" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-    <button class="notif-banner-x" onclick="document.getElementById('notif-banner').classList.remove('show')">×</button>
+    <div id="notif-list" style="flex:1;overflow-y:auto"></div>
   </div>
 
   <!-- PENDING BANNER -->
@@ -125,7 +121,7 @@
       <button onclick="calToday()" style="font-size:11px;font-weight:700;padding:5px 10px;border:1.5px solid var(--bdr);border-radius:6px;background:var(--w);cursor:pointer;color:var(--n);font-family:var(--F)">Today</button>
       <div id="cal-title" style="font-size:12px;font-weight:700;color:var(--n);flex:1;text-align:center"></div>
       <div style="display:flex;border:1.5px solid var(--bdr);border-radius:6px;overflow:hidden">
-        <button class="cal-vbtn on" id="cv-5d" onclick="setCalView('timeGridFiveDay')">5 days</button>
+        <button class="cal-vbtn on" id="cv-wk" onclick="setCalView('timeGridWeek')">Week</button>
         <button class="cal-vbtn" id="cv-day" onclick="setCalView('timeGridDay')">Day</button>
         <button class="cal-vbtn" id="cv-mo" onclick="setCalView('dayGridMonth')">Month</button>
       </div>
@@ -278,23 +274,10 @@ document.addEventListener('click', e => {
   const dd = document.getElementById('prof-dd')
   const av = document.getElementById('nav-av')
   if (dd && !dd.contains(e.target) && e.target !== av) dd.classList.remove('open')
-  const np = document.getElementById('notif-panel')
-  const nb = document.getElementById('notif-bell-wrap')
-  if (np && np.classList.contains('open') && !np.contains(e.target) && !nb?.contains(e.target)) {
-    np.classList.remove('open'); _notifOpen = false
-  }
 })
 
 function toggleDD() { document.getElementById('prof-dd').classList.toggle('open') }
 function closeDD()  { document.getElementById('prof-dd').classList.remove('open') }
-
-function switchTab(i) {
-  for (let j = 0; j < 5; j++) {
-    document.getElementById('tab'+j)?.classList.toggle('active', j===i)
-    document.getElementById('p'+j)?.classList.toggle('active', j===i)
-  }
-  closeDD()
-}
 
 // ── DASHBOARD ─────────────────────────────────────────────────
 async function loadDashboard() {
@@ -516,8 +499,7 @@ function initCalendar() {
   if (_cal || !IP) return
   const el = document.getElementById('cal-container'); if (!el) return
   _cal = new FullCalendar.Calendar(el, {
-    initialView: 'timeGridFiveDay',
-    views: { timeGridFiveDay: { type: 'timeGrid', duration: { days: 5 }, buttonText: '5 days' } },
+    initialView: 'timeGridWeek',
     headerToolbar: false,
     slotMinTime: '06:00:00',
     slotMaxTime: '22:00:00',
@@ -574,7 +556,7 @@ function calToday() { _cal?.today() }
 function setCalView(view) {
   _cal?.changeView(view)
   document.querySelectorAll('.cal-vbtn').forEach(b => b.classList.remove('on'))
-  const map = { timeGridFiveDay:'cv-5d', timeGridDay:'cv-day', dayGridMonth:'cv-mo' }
+  const map = { timeGridWeek:'cv-wk', timeGridDay:'cv-day', dayGridMonth:'cv-mo' }
   document.getElementById(map[view])?.classList.add('on')
 }
 
@@ -617,16 +599,20 @@ async function loadNotifications() {
   _unread = (data||[]).filter(n => !n.is_read).length
   updateNotifBadge()
   const list = document.getElementById('notif-list'); if (!list) return
-  if (!data?.length) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return }
-  list.innerHTML = data.map(n =>
-    '<div class="notif-item' + (n.is_read ? '' : ' unread') + '">'
-    + '<div class="notif-icon">' + (_notifIcons[n.type] || '🔔') + '</div>'
-    + '<div style="flex:1;min-width:0"><div class="notif-title">' + n.title + '</div>'
-    + (n.body ? '<div class="notif-body">' + n.body + '</div>' : '')
-    + '<div class="notif-time">' + timeAgo(n.created_at) + '</div></div>'
-    + (!n.is_read ? '<div class="notif-dot"></div>' : '')
-    + '</div>'
-  ).join('')
+  if (!data?.length) { list.innerHTML = '<div style="padding:40px 24px;text-align:center;color:var(--n3);font-size:13px">No notifications yet</div>'; return }
+  const borderMap = { booking_confirmed:'#22c55e', booking_cancelled:'#ef4444', new_booking:'#3b82f6', message:'#a855f7', payment:'#f59e0b' }
+  list.innerHTML = data.map(n => {
+    const bc = borderMap[n.type] || 'var(--bdr)'
+    return '<div style="background:' + (n.is_read ? 'var(--w)' : '#f0f9ff') + ';border-left:3px solid ' + bc + ';border-bottom:1px solid var(--bdr);padding:14px 16px;display:flex;gap:12px;align-items:flex-start">'
+      + '<div style="font-size:20px;flex-shrink:0;margin-top:1px">' + (_notifIcons[n.type] || '🔔') + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:13px;font-weight:' + (n.is_read ? '600' : '700') + ';color:var(--n);margin-bottom:2px">' + n.title + '</div>'
+      + (n.body ? '<div style="font-size:12px;color:var(--n3);margin-bottom:4px;line-height:1.4">' + n.body + '</div>' : '')
+      + '<div style="font-size:10px;color:var(--n4)">' + timeAgo(n.created_at) + '</div>'
+      + '</div>'
+      + (!n.is_read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--b);flex-shrink:0;margin-top:4px"></div>' : '')
+      + '</div>'
+  }).join('')
 }
 
 function updateNotifBadge() {
@@ -636,16 +622,17 @@ function updateNotifBadge() {
 }
 
 async function toggleNotifPanel() {
-  _notifOpen = !_notifOpen
-  document.getElementById('notif-panel').classList.toggle('open', _notifOpen)
-  if (_notifOpen) {
-    await loadNotifications()
-    if (_unread > 0) {
-      await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
-      _unread = 0; updateNotifBadge()
-    }
+  const page = document.getElementById('notif-page')
+  const isOpen = page.style.display === 'flex'
+  if (isOpen) { closeNotifPage(); return }
+  page.style.display = 'flex'
+  await loadNotifications()
+  if (_unread > 0) {
+    sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id).eq('is_read', false)
+    _unread = 0; updateNotifBadge()
   }
 }
+function closeNotifPage() { document.getElementById('notif-page').style.display = 'none' }
 
 async function markAllNotifRead() {
   await sb.from('notifications').update({ is_read: true }).eq('user_id', CU.id)
@@ -656,16 +643,10 @@ function subscribeNotifications() {
   if (!CU) return
   _notifSub = sb.channel('notif_instr_' + CU.id)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + CU.id }, payload => {
-      _unread++; updateNotifBadge(); showNotifBanner(payload.new)
-      if (_notifOpen) loadNotifications()
+      _unread++; updateNotifBadge()
+      const page = document.getElementById('notif-page')
+      if (page.style.display === 'flex') loadNotifications()
     }).subscribe()
-}
-
-function showNotifBanner(n) {
-  const b = document.getElementById('notif-banner'); if (!b) return
-  document.getElementById('nb-icon').textContent = _notifIcons[n.type] || '🔔'
-  document.getElementById('nb-text').textContent = n.title + (n.body ? ' — ' + n.body.slice(0, 60) : '')
-  b.classList.add('show'); setTimeout(() => b.classList.remove('show'), 5000)
 }
 
 function timeAgo(iso) {
