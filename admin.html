@@ -350,10 +350,13 @@ function filterTable(tableId, q) {
 async function deleteUser(userId, name) {
   if (!userId) { toast('No user ID'); return }
   if (!confirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return
-  const { error } = await sb.from('profiles').delete().eq('id', userId)
-  if (error) { toast('Error: ' + error.message); return }
-  toast('User deleted')
-  await loadStats(); await loadInstructors(); await loadLearners(); await loadPending()
+  try {
+    await api('/users/' + userId, 'DELETE')
+    toast('User deleted')
+    await loadStats(); await loadInstructors(); await loadLearners(); await loadPending()
+  } catch (err) {
+    toast('Error: ' + err.message)
+  }
 }
 
 async function signOut() { await sb.auth.signOut(); window.location.href = '/login.html' }
