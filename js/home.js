@@ -356,8 +356,21 @@ function openLearnerSignup(action) {
     const lrName = document.getElementById('lr-name').value.trim()
     const lrPhone = document.getElementById('lr-phone').value.trim()
     const lrPost = document.getElementById('lr-post').value.trim()
-    const { data, error } = await sb.auth.signUp({ email: document.getElementById('lr-email').value.trim(), password: document.getElementById('lr-pw').value, options: { data: { full_name: lrName, role: 'learner', phone: lrPhone, postcode: lrPost, test_centre: document.getElementById('lr-centre').value, transmission: document.getElementById('lr-trans').value, gender_pref: document.getElementById('lr-gend').value } } })
-    if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+    const lrEmail = document.getElementById('lr-email').value.trim()
+    const lrPw = document.getElementById('lr-pw').value
+    const lrOpts = { data: { full_name: lrName, role: 'learner', phone: lrPhone, postcode: lrPost, test_centre: document.getElementById('lr-centre').value, transmission: document.getElementById('lr-trans').value, gender_pref: document.getElementById('lr-gend').value } }
+    let { data, error } = await sb.auth.signUp({ email: lrEmail, password: lrPw, options: lrOpts })
+    if (error) {
+      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists')
+      if (alreadyExists) {
+        const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: lrEmail }) })
+        const rd = await rr.json()
+        if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+        const res2 = await sb.auth.signUp({ email: lrEmail, password: lrPw, options: lrOpts })
+        data = res2.data; error = res2.error
+      }
+      if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+    }
     if (data?.user) await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: lrName, phone: lrPhone, postcode: lrPost, onboarding_done: true }, { onConflict: 'id' })
     toast('✅ Account created!'); setTimeout(() => window.location.reload(), 1200)
   })
@@ -377,7 +390,7 @@ function openInstrSignup() {
     + '<div class="form-group blue"><label>Email</label><input type="email" id="ir-email" placeholder="you@email.com" required></div>'
     + '<div class="form-group blue"><label>Password</label><input type="password" id="ir-pw" placeholder="Min 8 characters" minlength="8" required></div>'
     + '<div class="grid-2"><div class="form-group blue"><label>Car</label><input type="text" id="ir-car" placeholder="e.g. Ford Focus" required></div>'
-    + '<div class="form-group blue"><label>Transmission</label><select id="ir-trans" required><option>Manual</option><option>Automatic</option></select></div></div>'
+    + '<div class="form-group blue"><label>Transmission</label><select id="ir-trans" required><option value="manual">Manual</option><option value="automatic">Automatic</option></select></div></div>'
     + '<div class="grid-2"><div class="form-group blue"><label>Postcode</label><input type="text" id="ir-post" placeholder="M1 1AA" required></div>'
     + '<div class="form-group blue"><label>Years experience</label><input type="number" id="ir-exp" placeholder="e.g. 5" min="0" required></div></div>'
     + '<div class="form-group blue"><label>Bio</label><textarea id="ir-bio" placeholder="Describe your teaching style and experience…" required></textarea></div>'
@@ -403,17 +416,32 @@ function openInstrSignup() {
     const irTrans = document.getElementById('ir-trans').value
     const irExp = document.getElementById('ir-exp').value
     const irBio = document.getElementById('ir-bio').value.trim()
+    const irEmail = document.getElementById('ir-email').value.trim()
+    const irPw = document.getElementById('ir-pw').value
+    const irSignUpOpts = { data: { full_name: irName, role: 'instructor', phone: irPhone, postcode: irPost, car: irCar, car_trans: irTrans, experience: irExp, bio: irBio, listings, test_centres: centres, pending_approval: true } }
     let signUpData, signUpError
     try {
-      const res = await sb.auth.signUp({ email: document.getElementById('ir-email').value.trim(), password: document.getElementById('ir-pw').value, options: { data: { full_name: irName, role: 'instructor', phone: irPhone, postcode: irPost, car: irCar, car_trans: irTrans, experience: irExp, bio: irBio, listings, test_centres: centres, pending_approval: true } } })
+      const res = await sb.auth.signUp({ email: irEmail, password: irPw, options: irSignUpOpts })
       signUpData = res.data; signUpError = res.error
     } catch(e) { toast('❌ Signup failed: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
-    if (signUpError) { toast('❌ ' + signUpError.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    if (signUpError) {
+      const alreadyExists = signUpError.message?.toLowerCase().includes('already registered') || signUpError.message?.toLowerCase().includes('already exists')
+      if (alreadyExists) {
+        try {
+          const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: irEmail }) })
+          const rd = await rr.json()
+          if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+          const res2 = await sb.auth.signUp({ email: irEmail, password: irPw, options: irSignUpOpts })
+          signUpData = res2.data; signUpError = res2.error
+        } catch(e) { toast('❌ Signup failed: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+      }
+      if (signUpError) { toast('❌ ' + signUpError.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    }
     if (signUpData?.user) {
       try {
         const { error: pe } = await sb.from('profiles').upsert({ id: signUpData.user.id, email: signUpData.user.email, role: 'instructor', full_name: irName, phone: irPhone, postcode: irPost, onboarding_done: true }, { onConflict: 'id' })
         if (pe) { toast('❌ Profile error: ' + pe.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
-        const { error: ie } = await sb.from('instructor_profiles').insert({ user_id: signUpData.user.id, car_make_model: irCar, transmission: irTrans, years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false })
+        const { error: ie } = await sb.from('instructor_profiles').insert({ user_id: signUpData.user.id, car_make_model: irCar, transmission: irTrans.toLowerCase(), years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false })
         if (ie) { toast('❌ Instructor profile error: ' + ie.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
       } catch(e) { toast('❌ DB error: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
     }

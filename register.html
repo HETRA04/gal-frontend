@@ -59,8 +59,21 @@
     const name = document.getElementById('name').value.trim()
     const phone = document.getElementById('phone').value.trim()
     const postcode = document.getElementById('postcode').value.trim()
-    const { data, error } = await sb.auth.signUp({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value, options: { data: { full_name: name, role: 'learner', phone, postcode, test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } } })
-    if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+    const regEmail = document.getElementById('email').value.trim()
+    const regPw = document.getElementById('password').value
+    const regOpts = { data: { full_name: name, role: 'learner', phone, postcode, test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } }
+    let { data, error } = await sb.auth.signUp({ email: regEmail, password: regPw, options: regOpts })
+    if (error) {
+      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists')
+      if (alreadyExists) {
+        const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: regEmail }) })
+        const rd = await rr.json()
+        if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+        const res2 = await sb.auth.signUp({ email: regEmail, password: regPw, options: regOpts })
+        data = res2.data; error = res2.error
+      }
+      if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+    }
     if (data?.user) {
       await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: name, phone, postcode, onboarding_done: true }, { onConflict: 'id' })
     }
