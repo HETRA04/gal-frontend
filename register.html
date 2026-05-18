@@ -44,7 +44,12 @@
 <script>
 ;(async () => {
   const user = await getUser()
-  if (user) { window.location.href = '/index.html'; return }
+  if (user) {
+    const profile = await getProfile(user.id)
+    if (profile) { window.location.href = '/index.html'; return }
+    // Logged in but no profile — stale/broken session, sign out and let them register
+    await sb.auth.signOut()
+  }
   hideLoader()
   document.getElementById('app').style.display = 'flex'
   document.getElementById('app').style.flexDirection = 'column'

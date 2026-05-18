@@ -17,7 +17,7 @@ async function getUser() {
 
 async function getProfile(userId) {
   try {
-    const { data } = await sb.from('profiles').select('*').eq('id', userId).single()
+    const { data } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle()
     return data
   } catch(e) { return null }
 }
