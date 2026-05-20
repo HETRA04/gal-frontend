@@ -361,15 +361,17 @@ function openLearnerSignup(action) {
     const lrOpts = { data: { full_name: lrName, role: 'learner', phone: lrPhone, postcode: lrPost, test_centre: document.getElementById('lr-centre').value, transmission: document.getElementById('lr-trans').value, gender_pref: document.getElementById('lr-gend').value } }
     let { data, error } = await sb.auth.signUp({ email: lrEmail, password: lrPw, options: lrOpts })
     if (error) {
-      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists')
+      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists') || error.message?.toLowerCase().includes('email')
       if (alreadyExists) {
-        const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: lrEmail }) })
-        const rd = await rr.json()
-        if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
-        const res2 = await sb.auth.signUp({ email: lrEmail, password: lrPw, options: lrOpts })
-        data = res2.data; error = res2.error
+        // Sign in with same credentials to check/repair partial account
+        const { data: siData, error: siErr } = await sb.auth.signInWithPassword({ email: lrEmail, password: lrPw })
+        if (siErr) { toast('❌ This email is already registered. Please sign in or use a different email.'); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+        const { data: existingProf } = await sb.from('profiles').select('id').eq('id', siData.user.id).maybeSingle()
+        if (existingProf) { toast('❌ You already have an account. Please sign in.'); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+        await sb.from('profiles').upsert({ id: siData.user.id, email: lrEmail, role: 'learner', full_name: lrName, phone: lrPhone, postcode: lrPost, onboarding_done: true }, { onConflict: 'id' })
+        toast('✅ Account created!'); setTimeout(() => window.location.reload(), 1200); return
       }
-      if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create account & continue →'; return }
+      toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create account & continue →'; return
     }
     if (data?.user) await sb.from('profiles').upsert({ id: data.user.id, email: data.user.email, role: 'learner', full_name: lrName, phone: lrPhone, postcode: lrPost, onboarding_done: true }, { onConflict: 'id' })
     toast('✅ Account created!'); setTimeout(() => window.location.reload(), 1200)
@@ -424,18 +426,29 @@ function openInstrSignup() {
       const res = await sb.auth.signUp({ email: irEmail, password: irPw, options: irSignUpOpts })
       signUpData = res.data; signUpError = res.error
     } catch(e) { toast('❌ Signup failed: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+    const instrSuccess = () => { document.getElementById('instr-modal-body').innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:44px;margin-bottom:14px">🎉</div><h3 style="font-size:18px;font-weight:800;color:var(--n);margin-bottom:8px">Application submitted!</h3><p style="font-size:13px;color:var(--n3);line-height:1.6;max-width:280px;margin:0 auto 20px">We\'ll review your profile within 24 hours. Once approved you\'ll receive an email with your payment link.</p><button class="btn btn-blue" style="width:auto;padding:10px 24px" onclick="closeInstrModal()">Got it</button></div>' }
     if (signUpError) {
-      const alreadyExists = signUpError.message?.toLowerCase().includes('already registered') || signUpError.message?.toLowerCase().includes('already exists')
+      const alreadyExists = signUpError.message?.toLowerCase().includes('already registered') || signUpError.message?.toLowerCase().includes('already exists') || signUpError.message?.toLowerCase().includes('email')
       if (alreadyExists) {
-        try {
-          const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: irEmail }) })
-          const rd = await rr.json()
-          if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
-          const res2 = await sb.auth.signUp({ email: irEmail, password: irPw, options: irSignUpOpts })
-          signUpData = res2.data; signUpError = res2.error
-        } catch(e) { toast('❌ Signup failed: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+        // Previous attempt may have left a partial account — sign in and repair
+        const { data: siData, error: siErr } = await sb.auth.signInWithPassword({ email: irEmail, password: irPw })
+        if (siErr) { toast('❌ This email is already registered. Please sign in or use a different email.'); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+        const uid = siData.user.id
+        // Ensure profile row exists
+        const { data: existingProf } = await sb.from('profiles').select('id').eq('id', uid).maybeSingle()
+        if (!existingProf) {
+          await sb.from('profiles').upsert({ id: uid, email: irEmail, role: 'instructor', full_name: irName, phone: irPhone, postcode: irPost, onboarding_done: true }, { onConflict: 'id' })
+        }
+        // Check if instructor_profiles already complete
+        const { data: existingIp } = await sb.from('instructor_profiles').select('id').eq('user_id', uid).maybeSingle()
+        if (existingIp) { await sb.auth.signOut(); toast('❌ You already have an account. Please sign in.'); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+        // Create the missing instructor_profiles row
+        const { error: ie } = await sb.from('instructor_profiles').insert({ user_id: uid, car_make_model: irCar, transmission: irTrans.toLowerCase(), years_experience: parseInt(irExp)||0, bio: irBio, test_centre: centres[0]||'', subscription_status: 'inactive', is_accepting_students: false })
+        await sb.auth.signOut()
+        if (ie) { toast('❌ Instructor profile error: ' + ie.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+        instrSuccess(); return
       }
-      if (signUpError) { toast('❌ ' + signUpError.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
+      toast('❌ ' + signUpError.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return
     }
     if (signUpData?.user) {
       try {
@@ -445,7 +458,7 @@ function openInstrSignup() {
         if (ie) { toast('❌ Instructor profile error: ' + ie.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
       } catch(e) { toast('❌ DB error: ' + e.message); btn.disabled = false; btn.textContent = 'Submit for approval →'; return }
     }
-    document.getElementById('instr-modal-body').innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:44px;margin-bottom:14px">🎉</div><h3 style="font-size:18px;font-weight:800;color:var(--n);margin-bottom:8px">Application submitted!</h3><p style="font-size:13px;color:var(--n3);line-height:1.6;max-width:280px;margin:0 auto 20px">We\'ll review your profile within 24 hours. Once approved you\'ll receive an email with your payment link.</p><button class="btn btn-blue" style="width:auto;padding:10px 24px" onclick="closeInstrModal()">Got it</button></div>'
+    instrSuccess()
   })
 }
 

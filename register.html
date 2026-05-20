@@ -64,13 +64,14 @@
     const regOpts = { data: { full_name: name, role: 'learner', phone, postcode, test_centre: document.getElementById('centre').value, transmission: document.getElementById('trans').value, gender_pref: document.getElementById('gend').value } }
     let { data, error } = await sb.auth.signUp({ email: regEmail, password: regPw, options: regOpts })
     if (error) {
-      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists')
+      const alreadyExists = error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('already exists') || error.message?.toLowerCase().includes('email')
       if (alreadyExists) {
-        const rr = await fetch(CONFIG.API_URL + '/users/reclaim-orphan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: regEmail }) })
-        const rd = await rr.json()
-        if (!rr.ok) { toast('❌ ' + rd.error); btn.disabled = false; btn.textContent = 'Create free account →'; return }
-        const res2 = await sb.auth.signUp({ email: regEmail, password: regPw, options: regOpts })
-        data = res2.data; error = res2.error
+        // Sign in with same credentials to check/repair partial account
+        const { data: siData, error: siErr } = await sb.auth.signInWithPassword({ email: regEmail, password: regPw })
+        if (siErr) { toast('❌ This email is already registered. Please sign in or use a different email.'); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+        const { data: existingProf } = await sb.from('profiles').select('id').eq('id', siData.user.id).maybeSingle()
+        if (existingProf) { toast('❌ You already have an account. Please sign in.'); btn.disabled = false; btn.textContent = 'Create free account →'; return }
+        data = { user: siData.user }; error = null
       }
       if (error) { toast('❌ ' + error.message); btn.disabled = false; btn.textContent = 'Create free account →'; return }
     }
