@@ -1,0 +1,14 @@
+{
+  "appId": "co.getalesson.app",
+  "appName": "Get A Lesson",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#ffffff"
+    }
+  }
+}

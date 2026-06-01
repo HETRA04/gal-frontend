@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(ls \"C:\\\\Users\\\\44789\\\\Documents\\\\GAL\\\\\")",
+      "Read(//c/Users/44789/Documents/**)"
+    ]
+  }
+}

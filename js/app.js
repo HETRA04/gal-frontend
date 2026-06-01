@@ -42,6 +42,7 @@ async function requireRole(expectedRole) {
   if (!profile) { window.location.href = '/login.html'; return null }
   if (profile.role !== expectedRole) { goHome(profile.role, user.email); return null }
   hideLoader()
+  if (window._syncOSUser) window._syncOSUser(user.id)
   return { user, profile }
 }
 

@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
+/* iOS/Android safe areas (notch, home indicator) */
+body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 :root{
   --g:#1DBF73;--gd:#19a463;--gl:#e9f9f1;
   --b:#2563EB;--bd:#1d4ed8;--bl:#eff6ff;
